@@ -33,6 +33,8 @@ build/
 .vscode/
 # Environment variables
 .env
+*.env
+.idea/
 
 # Local configuration
 application-local.properties

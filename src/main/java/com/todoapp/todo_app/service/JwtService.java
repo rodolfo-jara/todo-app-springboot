@@ -2,6 +2,7 @@ package com.todoapp.todo_app.service;
 
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
@@ -11,12 +12,13 @@ import java.util.Date;
 @Service
 public class JwtService {
 
-    private static final String SECRET_KEY =
-            "mi-clave-secreta-super-segura-para-todo-app-2026";
+    private final SecretKey key;
 
-    private final SecretKey key = Keys.hmacShaKeyFor(
-            SECRET_KEY.getBytes(StandardCharsets.UTF_8)
-    );
+    public JwtService(@Value("${jwt.secret}") String secretKey) {
+        this.key = Keys.hmacShaKeyFor(
+                secretKey.getBytes(StandardCharsets.UTF_8)
+        );
+    }
 
     public String generarToken(String email) {
 
