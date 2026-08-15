@@ -66,7 +66,9 @@ public class AuthController {
                     .body("Contraseña incorrecta");
         }
 
-        String token = jwtService.generarToken(usuario.getEmail());
+        String token = jwtService.generarToken(
+                usuario.getEmail(),
+                usuario.getRol());
 
         PerfilResponse perfil = new PerfilResponse(
                 usuario.getId(),

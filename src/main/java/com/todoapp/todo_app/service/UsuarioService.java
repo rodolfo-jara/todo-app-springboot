@@ -23,7 +23,10 @@ public class UsuarioService {
         usuario.setPassword(
                 passwordEncoder.encode(usuario.getPassword())
         );
-
+        usuario.setRol("USER");
         return usuarioRepository.save(usuario);
+    }
+    public Iterable<Usuario> listarUsuariso() {
+        return usuarioRepository.findAll();
     }
 }

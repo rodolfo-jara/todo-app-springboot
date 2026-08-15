@@ -20,10 +20,11 @@ public class JwtService {
         );
     }
 
-    public String generarToken(String email) {
+    public String generarToken(String email, String rol) {
 
         return Jwts.builder()
                 .subject(email)
+                .claim("rol", rol)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + 86400000))
                 .signWith(key)
@@ -53,5 +54,14 @@ public class JwtService {
         } catch (Exception e) {
             return false;
         }
+    }
+    public String extraerRol(String token) {
+
+        return Jwts.parser()
+                .verifyWith(key)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload()
+                .get("rol", String.class);
     }
 }
