@@ -1,6 +1,7 @@
 package com.todoapp.todo_app.config;
 
 import com.todoapp.todo_app.service.JwtService;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -53,7 +54,11 @@ public class SecurityConfig {
                         .requestMatchers("/api/perfil/admin").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
-
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint((request, response, authException) ->
+                                response.sendError(HttpServletResponse.SC_UNAUTHORIZED)
+                        )
+                )
                 .addFilterBefore(
                         jwtFilter,
                         UsernamePasswordAuthenticationFilter.class
@@ -61,4 +66,5 @@ public class SecurityConfig {
 
         return http.build();
     }
+
 }
