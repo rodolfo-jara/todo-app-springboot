@@ -3,6 +3,7 @@ package com.todoapp.todo_app.config;
 import com.todoapp.todo_app.service.JwtService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
@@ -35,15 +36,21 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(auth -> auth
 
+                        // Solo login queda público de /api/auth.
+                        .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/refresh").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/logout").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/auth/validate").permitAll()
+                        // Registro público, pero solo vía RegistroRequest (sin id/rol).
+                        .requestMatchers(HttpMethod.POST, "/api/usuarios").permitAll()
                         .requestMatchers(
-                                "/api/auth/**",
-                                "/api/usuarios",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**"
                         ).permitAll()
-                        .requestMatchers("/api/perfil/admin")
-                        .hasRole("ADMIN")
+                        // Listar todos los usuarios: solo ADMIN.
+                        .requestMatchers(HttpMethod.GET, "/api/usuarios").hasRole("ADMIN")
+                        .requestMatchers("/api/perfil/admin").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
 

@@ -2,6 +2,7 @@ package com.todoapp.todo_app.config;
 
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,6 +19,11 @@ public class OpenApiConfig {
                                         .scheme("bearer")
                                         .bearerFormat("JWT")
                         )
-                );
+                )
+                // Aplica el candado a TODOS los endpoints por defecto.
+                // Los que ya son públicos (login, registro, refresh...)
+                // no se ven afectados, porque Spring Security sigue
+                // dejándolos pasar sin token real igual.
+                .addSecurityItem(new SecurityRequirement() .addList("bearerAuth"));
     }
 }

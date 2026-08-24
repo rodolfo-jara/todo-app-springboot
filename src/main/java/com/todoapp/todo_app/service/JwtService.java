@@ -20,48 +20,42 @@ public class JwtService {
         );
     }
 
-    public String generarToken(String email, String rol) {
+    private static final long EXPIRACION_MS = 15 * 60 * 1000;
+
+    public String generarToken(String email, String rol, String app) {
 
         return Jwts.builder()
                 .subject(email)
                 .claim("rol", rol)
+                .audience().add(app).and()
                 .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + 86400000))
+                .expiration(new Date(System.currentTimeMillis() + EXPIRACION_MS))
                 .signWith(key)
                 .compact();
     }
 
     public String extraerEmail(String token) {
-
-        return Jwts.parser()
-                .verifyWith(key)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload()
-                .getSubject();
+        return Jwts.parser().verifyWith(key).build()
+                .parseSignedClaims(token).getPayload().getSubject();
     }
 
     public boolean tokenValido(String token) {
-
         try {
-            Jwts.parser()
-                    .verifyWith(key)
-                    .build()
-                    .parseSignedClaims(token);
-
+            Jwts.parser().verifyWith(key).build().parseSignedClaims(token);
             return true;
-
         } catch (Exception e) {
             return false;
         }
     }
-    public String extraerRol(String token) {
 
-        return Jwts.parser()
-                .verifyWith(key)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload()
-                .get("rol", String.class);
+    public String extraerRol(String token) {
+        return Jwts.parser().verifyWith(key).build()
+                .parseSignedClaims(token).getPayload().get("rol", String.class);
+    }
+
+    public String extraerApp(String token) {
+        var audiencia = Jwts.parser().verifyWith(key).build()
+                .parseSignedClaims(token).getPayload().getAudience();
+        return audiencia.isEmpty() ? null : audiencia.iterator().next();
     }
 }
