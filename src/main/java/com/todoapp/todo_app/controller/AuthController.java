@@ -2,6 +2,8 @@ package com.todoapp.todo_app.controller;
 import com.todoapp.todo_app.dto.LogoutRequest;
 import com.todoapp.todo_app.dto.*;
 import com.todoapp.todo_app.entity.Usuario;
+import com.todoapp.todo_app.entity.UsuarioAplicacion;
+import com.todoapp.todo_app.repository.UsuarioAplicacionRepository;
 import com.todoapp.todo_app.service.AuthService;
 import com.todoapp.todo_app.service.JwtService;
 import com.todoapp.todo_app.service.LoginAttemptService;
@@ -20,19 +22,22 @@ public class AuthController {
     private final JwtService jwtService;
     private final LoginAttemptService loginAttemptService;
     private final RefreshTokenService refreshTokenService;
+    private final UsuarioAplicacionRepository usuarioAplicacionRepository;
 
     public AuthController(
             AuthService authService,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
             LoginAttemptService loginAttemptService,
-            RefreshTokenService refreshTokenService
+            RefreshTokenService refreshTokenService,
+            UsuarioAplicacionRepository usuarioAplicacionRepository
     ) {
         this.authService = authService;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.loginAttemptService = loginAttemptService;
         this.refreshTokenService = refreshTokenService;
+        this.usuarioAplicacionRepository = usuarioAplicacionRepository;
     }
 
     @PostMapping("/login")
@@ -46,33 +51,51 @@ public class AuthController {
         Usuario usuario = authService.buscarPorEmail(request.getEmail());
 
         boolean credencialesValidas = usuario != null
-                && passwordEncoder.matches(request.getPassword(), usuario.getPassword());
+                && passwordEncoder.matches(
+                request.getPassword(),
+                usuario.getPassword()
+        );
 
         if (!credencialesValidas) {
             loginAttemptService.registrarFallo(request.getEmail());
-            return ResponseEntity.status(401).body("Credenciales inválidas");
+            return ResponseEntity.status(401)
+                    .body("Credenciales inválidas");
         }
 
-        // Aunque la contraseña sea correcta, si el usuario no tiene
-        // acceso a esta app, se rechaza (mismo mensaje genérico para
-        // no revelar si el problema fue la contraseña o el acceso).
-        if (!usuario.tieneAcceso(request.getApp())) {
+        UsuarioAplicacion acceso = usuarioAplicacionRepository
+                .findByUsuarioEmailAndAplicacionCodigo(
+                        usuario.getEmail(),
+                        request.getApp()
+                )
+                .orElse(null);
+
+        if (acceso == null || !acceso.isActivo()) {
             loginAttemptService.registrarFallo(request.getEmail());
-            return ResponseEntity.status(401).body("Credenciales inválidas");
+            return ResponseEntity.status(401)
+                    .body("Credenciales inválidas");
         }
 
         loginAttemptService.registrarExito(request.getEmail());
 
-        String accessToken = jwtService.generarToken(usuario.getEmail(), usuario.getRol(), request.getApp());
+        String accessToken = jwtService.generarToken(
+                usuario.getEmail(),
+                acceso.getRol(),
+                request.getApp()
+        );
+
         String refreshToken = refreshTokenService.crear(usuario);
 
         PerfilResponse perfil = new PerfilResponse(
-                usuario.getId(), usuario.getNombre(), usuario.getEmail(), usuario.getRol()
+                usuario.getId(),
+                usuario.getNombre(),
+                usuario.getEmail(),
+                acceso.getRol()
         );
 
-        return ResponseEntity.ok(new LoginResponse(accessToken, refreshToken, perfil));
+        return ResponseEntity.ok(
+                new LoginResponse(accessToken, refreshToken, perfil)
+        );
     }
-
     @PostMapping("/refresh")
     public ResponseEntity<?> refresh(@Valid @RequestBody RefreshRequest request) {
 

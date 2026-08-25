@@ -57,14 +57,34 @@ class AuthControllerTest {
         aplicacionRepository.deleteAll();
         usuarioRepository.deleteAll();
 
+        // 1. Crear usuario
         Usuario usuario = new Usuario();
         usuario.setNombre("Usuario Test");
         usuario.setEmail("test@test.com");
         usuario.setPassword(passwordEncoder.encode("Password123"));
+
+        // Temporalmente mantenemos estos campos antiguos.
         usuario.setRol("USER");
         usuario.getAplicaciones().add("todo-app");
 
-        usuarioRepository.save(usuario);
+        usuario = usuarioRepository.save(usuario);
+
+        // 2. Crear la aplicación
+        Aplicacion todoApp = new Aplicacion(
+                "todo-app",
+                "Todo App"
+        );
+
+        todoApp = aplicacionRepository.save(todoApp);
+
+        // 3. Dar acceso del usuario a todo-app
+        UsuarioAplicacion acceso = new UsuarioAplicacion(
+                usuario,
+                todoApp,
+                "USER"
+        );
+
+        usuarioAplicacionRepository.save(acceso);
     }
 
     @Test
@@ -146,17 +166,23 @@ class AuthControllerTest {
                 .asText();
 
         mockMvc.perform(get("/api/perfil/admin")
-                        .header("Authorization", "Bearer " + token))
+                        .header("Authorization", "Bearer " + token)
+                        .header("X-App-Id", "todo-app"))
                 .andExpect(status().isForbidden());
     }
     @Test
     void usuarioConRolAdminDebeAccederAEndpointAdmin() throws Exception {
 
-        Usuario admin = usuarioRepository.findByEmail("test@test.com")
+        UsuarioAplicacion acceso = usuarioAplicacionRepository
+                .findByUsuarioEmailAndAplicacionCodigo(
+                        "test@test.com",
+                        "todo-app"
+                )
                 .orElseThrow();
 
-        admin.setRol("ADMIN");
-        usuarioRepository.save(admin);
+        acceso.setRol("ADMIN");
+        usuarioAplicacionRepository.save(acceso);
+
 
         String loginJson = """
             {
@@ -180,13 +206,17 @@ class AuthControllerTest {
                 .asText();
 
         mockMvc.perform(get("/api/perfil/admin")
-                        .header("Authorization", "Bearer " + token))
+                        .header("Authorization", "Bearer " + token)
+                        .header("X-App-Id", "todo-app"))
                 .andExpect(status().isOk());
     }
     @Test
     void registroDebeNormalizarEmail() throws Exception {
 
+        // Limpiamos primero tablas hijas y luego tablas padre
         refreshTokenRepository.deleteAll();
+        usuarioAplicacionRepository.deleteAll();
+        aplicacionRepository.deleteAll();
         usuarioRepository.deleteAll();
 
         String json = """
@@ -203,7 +233,8 @@ class AuthControllerTest {
                         .content(json))
                 .andExpect(status().isCreated());
 
-        Usuario usuarioGuardado = usuarioRepository.findByEmail("test@test.com")
+        Usuario usuarioGuardado = usuarioRepository
+                .findByEmail("test@test.com")
                 .orElseThrow();
 
         org.junit.jupiter.api.Assertions.assertEquals(
@@ -307,11 +338,12 @@ class AuthControllerTest {
         String token = jwtService.generarToken(
                 "test@test.com",
                 "USER",
-                "otra-app"
+                "miapp"
         );
 
         mockMvc.perform(get("/api/perfil")
-                        .header("Authorization", "Bearer " + token))
+                        .header("Authorization", "Bearer " + token)
+                        .header("X-App-Id", "demoapp"))
                 .andExpect(status().isUnauthorized());
     }
     @Test
@@ -361,4 +393,96 @@ class AuthControllerTest {
                 relacionDemoApp.getRol()
         );
     }
+
+    @Test
+    void loginDebeUsarRolDeLaAplicacion() throws Exception {
+
+        Usuario usuario = usuarioRepository.findByEmail("test@test.com")
+                .orElseThrow();
+
+        // El @BeforeEach ya creó:
+        // todo-app -> USER
+
+        Aplicacion demoApp = new Aplicacion(
+                "demoapp",
+                "Demo App"
+        );
+
+        demoApp = aplicacionRepository.save(demoApp);
+
+        UsuarioAplicacion accesoDemo = new UsuarioAplicacion(
+                usuario,
+                demoApp,
+                "ADMIN"
+        );
+
+        usuarioAplicacionRepository.save(accesoDemo);
+
+        String json = """
+            {
+                "email": "test@test.com",
+                "password": "Password123",
+                "app": "demoapp"
+            }
+            """;
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.usuario.email")
+                        .value("test@test.com"))
+                .andExpect(jsonPath("$.usuario.rol")
+                        .value("ADMIN"));
+    }
+    @Test
+    void loginDebeGenerarTokenConAudienceDeLaAplicacion() throws Exception {
+
+        Usuario usuario = usuarioRepository.findByEmail("test@test.com")
+                .orElseThrow();
+
+        Aplicacion demoApp = new Aplicacion(
+                "demoapp",
+                "Demo App"
+        );
+
+        demoApp = aplicacionRepository.save(demoApp);
+
+        UsuarioAplicacion accesoDemo = new UsuarioAplicacion(
+                usuario,
+                demoApp,
+                "ADMIN"
+        );
+
+        usuarioAplicacionRepository.save(accesoDemo);
+
+        String json = """
+            {
+                "email": "test@test.com",
+                "password": "Password123",
+                "app": "demoapp"
+            }
+            """;
+
+        String respuesta = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String token = new tools.jackson.databind.ObjectMapper()
+                .readTree(respuesta)
+                .get("token")
+                .asText();
+
+        String audience = jwtService.extraerApp(token);
+
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "demoapp",
+                audience
+        );
+    }
+
 }

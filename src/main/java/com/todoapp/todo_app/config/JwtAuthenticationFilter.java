@@ -42,7 +42,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (jwtService.tokenValido(token)) {
 
             String email = jwtService.extraerEmail(token);
-            String rol  = jwtService.extraerRol(token);
+            String rol = jwtService.extraerRol(token);
+            String appToken = jwtService.extraerApp(token);
+
+            String appRequest = request.getHeader("X-App-Id");
+
+            if (appRequest == null || !appRequest.equals(appToken)) {
+                response.sendError(
+                        HttpServletResponse.SC_UNAUTHORIZED,
+                        "Token no válido para esta aplicación"
+                );
+                return;
+            }
 
             UsernamePasswordAuthenticationToken authentication =
                     new UsernamePasswordAuthenticationToken(
@@ -50,8 +61,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             null,
                             Collections.singletonList(
                                     new SimpleGrantedAuthority("ROLE_" + rol)
-                                    )
-
+                            )
                     );
 
             SecurityContextHolder
