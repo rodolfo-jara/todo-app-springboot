@@ -25,8 +25,11 @@ public class UsuarioService {
     }
 
     public Usuario registrar(RegistroRequest request) {
+        String emailNormalizado = request.getEmail()
+                .trim()
+                .toLowerCase();
 
-        var existente = usuarioRepository.findByEmail(request.getEmail());
+        var existente = usuarioRepository.findByEmail(emailNormalizado);
 
         if (existente.isPresent()) {
             Usuario usuario = existente.get();
@@ -46,8 +49,9 @@ public class UsuarioService {
         // Usuario completamente nuevo.
         Usuario usuario = new Usuario();
         usuario.setNombre(request.getNombre());
-        usuario.setEmail(request.getEmail());
-        usuario.setPassword(passwordEncoder.encode(request.getPassword()));
+        usuario.setEmail(emailNormalizado);
+        usuario.setPassword(
+                passwordEncoder.encode(request.getPassword()));
         usuario.setRol("USER");
         usuario.getAplicaciones().add(request.getApp());
 
