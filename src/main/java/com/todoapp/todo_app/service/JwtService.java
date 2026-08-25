@@ -58,4 +58,23 @@ public class JwtService {
                 .parseSignedClaims(token).getPayload().getAudience();
         return audiencia.isEmpty() ? null : audiencia.iterator().next();
     }
+
+    public String generarTokenExpiradoParaTest(
+            String email,
+            String rol,
+            String app
+    ) {
+        Date ahora = new Date();
+
+        return Jwts.builder()
+                .subject(email)
+                .claim("rol", rol)
+                .audience()
+                .add(app)
+                .and()
+                .issuedAt(new Date(ahora.getTime() - 120_000))
+                .expiration(new Date(ahora.getTime() - 60_000))
+                .signWith(key)
+                .compact();
+    }
 }

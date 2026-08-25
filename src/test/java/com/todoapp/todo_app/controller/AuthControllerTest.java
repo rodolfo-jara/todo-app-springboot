@@ -9,6 +9,8 @@ import com.todoapp.todo_app.repository.RefreshTokenRepository;
 import com.todoapp.todo_app.repository.UsuarioAplicacionRepository;
 import com.todoapp.todo_app.repository.UsuarioRepository;
 import com.todoapp.todo_app.service.JwtService;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +21,11 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+
+import javax.crypto.SecretKey;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -484,5 +491,77 @@ class AuthControllerTest {
                 audience
         );
     }
+    @Test
+    void tokenFirmadoConOtraClaveDebeSerRechazado() throws Exception {
 
+        SecretKey claveFalsa = Keys.hmacShaKeyFor(
+                "esta-es-una-clave-falsa-muy-larga-123456789012345678901234567890"
+                        .getBytes(StandardCharsets.UTF_8)
+        );
+
+        String tokenFalso = Jwts.builder()
+                .subject("test@test.com")
+                .claim("rol", "ADMIN")
+                .audience()
+                .add("todo-app")
+                .and()
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + 60_000))
+                .signWith(claveFalsa)
+                .compact();
+
+        mockMvc.perform(get("/api/perfil/admin")
+                        .header("Authorization", "Bearer " + tokenFalso)
+                        .header("X-App-Id", "todo-app"))
+                .andExpect(status().isUnauthorized());
+    }
+    @Test
+    void tokenExpiradoDebeSerRechazado() throws Exception {
+
+        String token = jwtService.generarTokenExpiradoParaTest(
+                "test@test.com",
+                "USER",
+                "todo-app"
+        );
+
+        mockMvc.perform(get("/api/perfil")
+                        .header("Authorization", "Bearer " + token)
+                        .header("X-App-Id", "todo-app"))
+                .andExpect(status().isUnauthorized());
+    }
+    @Test
+    void rolEnRequestNoDebeCambiarRolRealDelUsuario() throws Exception {
+
+        String json = """
+            {
+                "email": "test@test.com",
+                "password": "Password123",
+                "app": "todo-app",
+                "rol": "ADMIN"
+            }
+            """;
+
+        String respuesta = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.usuario.rol").value("USER"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String token = new tools.jackson.databind.ObjectMapper()
+                .readTree(respuesta)
+                .get("token")
+                .asText();
+
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "USER",
+                jwtService.extraerRol(token)
+        );
+        mockMvc.perform(get("/api/perfil/admin")
+                        .header("Authorization", "Bearer " + token)
+                        .header("X-App-Id", "todo-app"))
+                .andExpect(status().isForbidden());
+    }
 }
