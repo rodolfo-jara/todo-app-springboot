@@ -16,12 +16,16 @@ public class Aplicacion {
     @Column(nullable = false)
     private String nombre;
 
+    @Column(nullable = false)
+    private boolean activo = true;
+
     public Aplicacion() {
     }
 
     public Aplicacion(String codigo, String nombre) {
         this.codigo = codigo;
         this.nombre = nombre;
+        this.activo = true;
     }
 
     public Long getId() {
@@ -42,5 +46,13 @@ public class Aplicacion {
 
     public void setNombre(String nombre) {
         this.nombre = nombre;
+    }
+
+    public boolean isActivo() {
+        return activo;
+    }
+
+    public void setActivo(boolean activo) {
+        this.activo = activo;
     }
 }

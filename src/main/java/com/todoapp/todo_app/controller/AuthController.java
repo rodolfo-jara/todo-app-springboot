@@ -110,14 +110,29 @@ public class AuthController {
 
         // Se revalida el acceso a la app: si en el camino le quitaron
         // el acceso, el refresh no le regala un token nuevo igual.
-        if (!usuario.tieneAcceso(request.getApp())) {
-            return ResponseEntity.status(401).body("No tienes acceso a esta aplicación");
+        UsuarioAplicacion acceso = usuarioAplicacionRepository
+                .findByUsuarioEmailAndAplicacionCodigo(
+                        usuario.getEmail(),
+                        request.getApp()
+                )
+                .orElse(null);
+
+        if (acceso == null || !acceso.isActivo()) {
+            return ResponseEntity.status(401)
+                    .body("No tienes acceso a esta aplicación");
         }
 
-        String nuevoAccessToken = jwtService.generarToken(usuario.getEmail(), usuario.getRol(), request.getApp());
+        String nuevoAccessToken = jwtService.generarToken(
+                usuario.getEmail(),
+                acceso.getRol(),
+                request.getApp()
+        );
 
         PerfilResponse perfil = new PerfilResponse(
-                usuario.getId(), usuario.getNombre(), usuario.getEmail(), usuario.getRol()
+                usuario.getId(),
+                usuario.getNombre(),
+                usuario.getEmail(),
+                acceso.getRol()
         );
 
         LoginResponse response = new LoginResponse(
