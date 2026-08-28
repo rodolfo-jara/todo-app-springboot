@@ -1,13 +1,18 @@
 package com.todoapp.todo_app.service;
 
 import com.todoapp.todo_app.dto.RegistroRequest;
+import com.todoapp.todo_app.entity.Aplicacion;
 import com.todoapp.todo_app.entity.Usuario;
+import com.todoapp.todo_app.entity.UsuarioAplicacion;
+import com.todoapp.todo_app.repository.AplicacionRepository;
+import com.todoapp.todo_app.repository.UsuarioAplicacionRepository;
 import com.todoapp.todo_app.repository.UsuarioRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -15,50 +20,80 @@ import java.util.List;
 public class UsuarioService {
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AplicacionRepository aplicacionRepository;
+    private final UsuarioAplicacionRepository usuarioAplicacionRepository;
 
     public UsuarioService(
             UsuarioRepository usuarioRepository,
-            PasswordEncoder passwordEncoder
+            PasswordEncoder passwordEncoder,
+            AplicacionRepository aplicacionRepository,
+            UsuarioAplicacionRepository usuarioAplicacionRepository
     ) {
         this.usuarioRepository = usuarioRepository;
         this.passwordEncoder = passwordEncoder;
+        this.aplicacionRepository = aplicacionRepository;
+        this.usuarioAplicacionRepository = usuarioAplicacionRepository;
     }
+    @Transactional
+    public UsuarioAplicacion registrar(RegistroRequest request) {
 
-    public Usuario registrar(RegistroRequest request) {
         String emailNormalizado = request.getEmail()
                 .trim()
                 .toLowerCase();
 
-        var existente = usuarioRepository.findByEmail(emailNormalizado);
+        // 1. Verificar que la aplicación exista
+        Aplicacion aplicacion = aplicacionRepository
+                .findByCodigo(request.getApp())
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Aplicación no válida"
+                ));
 
-        if (existente.isPresent()) {
-            Usuario usuario = existente.get();
-
-            // Ya existe una cuenta con ese email: para sumarle acceso a
-            // esta nueva app, exigimos la contraseña correcta. Así nadie
-            // puede "registrarse" con el email de otra persona para
-            // ganar acceso sin ser el dueño de la cuenta.
-            if (!passwordEncoder.matches(request.getPassword(), usuario.getPassword())) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "El email ya está registrado");
-            }
-
-            usuario.getAplicaciones().add(request.getApp());
-            return usuarioRepository.save(usuario);
+        // 2. Verificar que la aplicación esté activa
+        if (!aplicacion.isActivo()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Aplicación no disponible"
+            );
         }
 
-        // Usuario completamente nuevo.
+        // 3. El email no puede registrarse nuevamente
+        if (usuarioRepository.findByEmail(emailNormalizado).isPresent()) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "El email ya está registrado"
+            );
+        }
+
+        // 4. Crear el usuario
         Usuario usuario = new Usuario();
         usuario.setNombre(request.getNombre());
         usuario.setEmail(emailNormalizado);
         usuario.setPassword(
-                passwordEncoder.encode(request.getPassword()));
-        usuario.setRol("USER");
-        usuario.getAplicaciones().add(request.getApp());
+                passwordEncoder.encode(request.getPassword())
+        );
 
         try {
-            return usuarioRepository.save(usuario);
+
+            Usuario usuarioGuardado =
+                    usuarioRepository.save(usuario);
+
+            // 5. Crear acceso del usuario a la aplicación
+            UsuarioAplicacion acceso = new UsuarioAplicacion(
+                    usuarioGuardado,
+                    aplicacion,
+                    "USER"
+            );
+
+            // 6. La fuente de verdad ahora es UsuarioAplicacion
+            return usuarioAplicacionRepository.save(acceso);
+
         } catch (DataIntegrityViolationException e) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "El email ya está registrado");
+
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "El email ya está registrado"
+            );
         }
     }
 

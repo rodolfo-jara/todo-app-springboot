@@ -223,7 +223,6 @@ class AuthControllerTest {
         // Limpiamos primero tablas hijas y luego tablas padre
         refreshTokenRepository.deleteAll();
         usuarioAplicacionRepository.deleteAll();
-        aplicacionRepository.deleteAll();
         usuarioRepository.deleteAll();
 
         String json = """
@@ -563,5 +562,155 @@ class AuthControllerTest {
                         .header("Authorization", "Bearer " + token)
                         .header("X-App-Id", "todo-app"))
                 .andExpect(status().isForbidden());
+    }
+    @Test
+    void registroDebeCrearUsuarioAplicacion() throws Exception {
+
+        String json = """
+        {
+            "nombre": "Nuevo Usuario",
+            "email": "nuevo@test.com",
+            "password": "Password123",
+            "app": "todo-app"
+        }
+        """;
+
+        mockMvc.perform(post("/api/usuarios")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isCreated());
+
+        UsuarioAplicacion acceso = usuarioAplicacionRepository
+                .findByUsuarioEmailAndAplicacionCodigo(
+                        "nuevo@test.com",
+                        "todo-app"
+                )
+                .orElseThrow();
+
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "USER",
+                acceso.getRol()
+        );
+
+        org.junit.jupiter.api.Assertions.assertTrue(
+                acceso.isActivo()
+        );
+    }
+    @Test
+    void registroConAplicacionInexistenteDebeRetornar400() throws Exception {
+
+        String json = """
+        {
+            "nombre": "Usuario App Inexistente",
+            "email": "inexistente@test.com",
+            "password": "Password123",
+            "app": "app-que-no-existe"
+        }
+        """;
+
+        mockMvc.perform(post("/api/usuarios")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isBadRequest());
+
+        org.junit.jupiter.api.Assertions.assertTrue(
+                usuarioRepository
+                        .findByEmail("inexistente@test.com")
+                        .isEmpty()
+        );
+    }
+    @Test
+    void registroConAplicacionDesactivadaDebeRetornar400() throws Exception {
+
+        Aplicacion aplicacion = aplicacionRepository
+                .findByCodigo("todo-app")
+                .orElseThrow();
+
+        aplicacion.setActivo(false);
+        aplicacionRepository.save(aplicacion);
+
+        String json = """
+        {
+            "nombre": "Usuario App Desactivada",
+            "email": "desactivada@test.com",
+            "password": "Password123",
+            "app": "todo-app"
+        }
+        """;
+
+        mockMvc.perform(post("/api/usuarios")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isBadRequest());
+
+        org.junit.jupiter.api.Assertions.assertTrue(
+                usuarioRepository
+                        .findByEmail("desactivada@test.com")
+                        .isEmpty()
+        );
+    }
+
+    @Test
+    void usuarioExistenteNoDebePoderAutoAsignarseAOtraAplicacion() throws Exception {
+
+        Aplicacion demoApp = new Aplicacion(
+                "demoapp",
+                "Demo App"
+        );
+
+        aplicacionRepository.save(demoApp);
+
+        String json = """
+        {
+            "nombre": "Usuario Test",
+            "email": "test@test.com",
+            "password": "Password123",
+            "app": "demoapp"
+        }
+        """;
+
+        mockMvc.perform(post("/api/usuarios")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isConflict());
+
+        org.junit.jupiter.api.Assertions.assertTrue(
+                usuarioAplicacionRepository
+                        .findByUsuarioEmailAndAplicacionCodigo(
+                                "test@test.com",
+                                "demoapp"
+                        )
+                        .isEmpty()
+        );
+    }
+    @Test
+    void registroNoDebePermitirAutoAsignarseAdmin() throws Exception {
+
+        String json = """
+        {
+            "nombre": "Usuario Malicioso",
+            "email": "malicioso@test.com",
+            "password": "Password123",
+            "app": "todo-app",
+            "rol": "ADMIN"
+        }
+        """;
+
+        mockMvc.perform(post("/api/usuarios")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isCreated());
+
+        UsuarioAplicacion acceso = usuarioAplicacionRepository
+                .findByUsuarioEmailAndAplicacionCodigo(
+                        "malicioso@test.com",
+                        "todo-app"
+                )
+                .orElseThrow();
+
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "USER",
+                acceso.getRol()
+        );
     }
 }
