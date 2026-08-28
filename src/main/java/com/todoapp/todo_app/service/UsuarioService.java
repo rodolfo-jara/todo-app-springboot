@@ -2,6 +2,7 @@ package com.todoapp.todo_app.service;
 
 import com.todoapp.todo_app.dto.RegistroRequest;
 import com.todoapp.todo_app.entity.Aplicacion;
+import com.todoapp.todo_app.entity.RolAplicacion;
 import com.todoapp.todo_app.entity.Usuario;
 import com.todoapp.todo_app.entity.UsuarioAplicacion;
 import com.todoapp.todo_app.repository.AplicacionRepository;
@@ -82,7 +83,7 @@ public class UsuarioService {
             UsuarioAplicacion acceso = new UsuarioAplicacion(
                     usuarioGuardado,
                     aplicacion,
-                    "USER"
+                    RolAplicacion.USER
             );
 
             // 6. La fuente de verdad ahora es UsuarioAplicacion

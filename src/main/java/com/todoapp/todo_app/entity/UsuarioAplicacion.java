@@ -26,8 +26,9 @@ public class UsuarioAplicacion {
     @JoinColumn(name = "aplicacion_id", nullable = false)
     private Aplicacion aplicacion;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String rol;
+    private RolAplicacion rol;
 
     @Column(nullable = false)
     private boolean activo = true;
@@ -35,15 +36,15 @@ public class UsuarioAplicacion {
     public UsuarioAplicacion() {
     }
 
+
     public UsuarioAplicacion(
             Usuario usuario,
             Aplicacion aplicacion,
-            String rol
+            RolAplicacion rol
     ) {
         this.usuario = usuario;
         this.aplicacion = aplicacion;
         this.rol = rol;
-        this.activo = true;
     }
 
     public Long getId() {
@@ -67,13 +68,12 @@ public class UsuarioAplicacion {
     }
 
     public String getRol() {
-        return rol;
+        return rol.name();
     }
 
     public void setRol(String rol) {
-        this.rol = rol;
+        this.rol = RolAplicacion.valueOf(rol);
     }
-
     public boolean isActivo() {
         return activo;
     }

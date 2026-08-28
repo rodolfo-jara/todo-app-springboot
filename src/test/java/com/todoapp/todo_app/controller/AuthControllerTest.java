@@ -2,6 +2,7 @@ package com.todoapp.todo_app.controller;
 
 
 import com.todoapp.todo_app.entity.Aplicacion;
+import com.todoapp.todo_app.entity.RolAplicacion;
 import com.todoapp.todo_app.entity.Usuario;
 import com.todoapp.todo_app.entity.UsuarioAplicacion;
 import com.todoapp.todo_app.repository.AplicacionRepository;
@@ -85,10 +86,12 @@ class AuthControllerTest {
         todoApp = aplicacionRepository.save(todoApp);
 
         // 3. Dar acceso del usuario a todo-app
+        // 1. En @BeforeEach, alrededor de la línea 88
+
         UsuarioAplicacion acceso = new UsuarioAplicacion(
                 usuario,
                 todoApp,
-                "USER"
+                RolAplicacion.USER
         );
 
         usuarioAplicacionRepository.save(acceso);
@@ -365,10 +368,18 @@ class AuthControllerTest {
         aplicacionRepository.save(demoapp);
 
         UsuarioAplicacion accesoMiApp =
-                new UsuarioAplicacion(usuario, miapp, "USER");
+                new UsuarioAplicacion(
+                        usuario,
+                        miapp,
+                        RolAplicacion.USER
+                );
 
         UsuarioAplicacion accesoDemoApp =
-                new UsuarioAplicacion(usuario, demoapp, "ADMIN");
+                new UsuarioAplicacion(
+                        usuario,
+                        demoapp,
+                        RolAplicacion.ADMIN
+                );
 
         usuarioAplicacionRepository.save(accesoMiApp);
         usuarioAplicacionRepository.save(accesoDemoApp);
@@ -408,7 +419,6 @@ class AuthControllerTest {
 
         // El @BeforeEach ya creó:
         // todo-app -> USER
-
         Aplicacion demoApp = new Aplicacion(
                 "demoapp",
                 "Demo App"
@@ -419,7 +429,7 @@ class AuthControllerTest {
         UsuarioAplicacion accesoDemo = new UsuarioAplicacion(
                 usuario,
                 demoApp,
-                "ADMIN"
+                RolAplicacion.ADMIN
         );
 
         usuarioAplicacionRepository.save(accesoDemo);
@@ -457,7 +467,7 @@ class AuthControllerTest {
         UsuarioAplicacion accesoDemo = new UsuarioAplicacion(
                 usuario,
                 demoApp,
-                "ADMIN"
+                RolAplicacion.ADMIN
         );
 
         usuarioAplicacionRepository.save(accesoDemo);
@@ -810,5 +820,67 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void perfilDebeMostrarRolDeLaAplicacionActual() throws Exception {
+
+        Usuario usuario = usuarioRepository
+                .findByEmail("test@test.com")
+                .orElseThrow();
+
+        Aplicacion demoApp = new Aplicacion(
+                "demoapp",
+                "Demo App"
+        );
+
+        demoApp = aplicacionRepository.save(demoApp);
+
+        UsuarioAplicacion accesoDemo = new UsuarioAplicacion(
+                usuario,
+                demoApp,
+                RolAplicacion.ADMIN
+        );
+
+        usuarioAplicacionRepository.save(accesoDemo);
+
+        String loginJson = """
+        {
+            "email": "test@test.com",
+            "password": "Password123",
+            "app": "demoapp"
+        }
+        """;
+
+        String respuestaLogin = mockMvc.perform(
+                        post("/api/auth/login")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(loginJson)
+                )
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String token = new tools.jackson.databind.ObjectMapper()
+                .readTree(respuestaLogin)
+                .get("token")
+                .asText();
+
+        mockMvc.perform(
+                        get("/api/perfil")
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + token
+                                )
+                                .header(
+                                        "X-App-Id",
+                                        "demoapp"
+                                )
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rol").value("ADMIN"))
+                .andExpect(jsonPath("$.email").value("test@test.com"))
+                .andExpect(jsonPath("$.password").doesNotExist());
     }
 }
