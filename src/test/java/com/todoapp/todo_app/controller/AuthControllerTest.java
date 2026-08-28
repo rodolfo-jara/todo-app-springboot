@@ -21,7 +21,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import javax.crypto.SecretKey;
 
 import java.nio.charset.StandardCharsets;
@@ -712,5 +712,103 @@ class AuthControllerTest {
                 "USER",
                 acceso.getRol()
         );
+    }
+    @Test
+    void loginConAplicacionDesactivadaDebeRetornar401() throws Exception {
+
+        Aplicacion aplicacion = aplicacionRepository
+                .findByCodigo("todo-app")
+                .orElseThrow();
+
+        aplicacion.setActivo(false);
+        aplicacionRepository.save(aplicacion);
+
+        String json = """
+        {
+            "email": "test@test.com",
+            "password": "Password123",
+            "app": "todo-app"
+        }
+        """;
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isUnauthorized());
+    }
+    @Test
+    void loginConAplicacionInexistenteDebeRetornar401() throws Exception {
+
+        String json = """
+        {
+            "email": "test@test.com",
+            "password": "Password123",
+            "app": "app-que-no-existe"
+        }
+        """;
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isUnauthorized());
+    }
+    @Test
+    void loginConAccesoDesactivadoDebeRetornar401() throws Exception {
+
+        UsuarioAplicacion acceso = usuarioAplicacionRepository
+                .findByUsuarioEmailAndAplicacionCodigo(
+                        "test@test.com",
+                        "todo-app"
+                )
+                .orElseThrow();
+
+        acceso.setActivo(false);
+        usuarioAplicacionRepository.save(acceso);
+
+        String json = """
+        {
+            "email": "test@test.com",
+            "password": "Password123",
+            "app": "todo-app"
+        }
+        """;
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isUnauthorized());
+    }
+    @Test
+    void loginNoDebeRevelarMotivoDeCredencialesInvalidas() throws Exception {
+
+        String json = """
+        {
+            "email": "test@test.com",
+            "password": "PasswordIncorrecta",
+            "app": "todo-app"
+        }
+        """;
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().string("Credenciales inválidas"));
+    }
+    @Test
+    void loginDebeNormalizarCodigoAplicacion() throws Exception {
+
+        String json = """
+        {
+            "email": "test@test.com",
+            "password": "Password123",
+            "app": "  TODO-APP  "
+        }
+        """;
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isOk());
     }
 }

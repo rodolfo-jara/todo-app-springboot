@@ -32,5 +32,9 @@ public class LoginRequest {
     public void setPassword(String password) { this.password = password; }
 
     public String getApp() { return app; }
-    public void setApp(String app) { this.app = app; }
+    public void setApp(String app) {
+        this.app = app == null
+                ? null
+                : app.trim().toLowerCase(Locale.ROOT);
+    }
 }

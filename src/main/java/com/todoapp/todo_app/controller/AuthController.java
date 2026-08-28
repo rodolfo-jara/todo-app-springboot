@@ -69,8 +69,12 @@ public class AuthController {
                 )
                 .orElse(null);
 
-        if (acceso == null || !acceso.isActivo()) {
+        if (acceso == null
+                || !acceso.isActivo()
+                || !acceso.getAplicacion().isActivo()) {
+
             loginAttemptService.registrarFallo(request.getEmail());
+
             return ResponseEntity.status(401)
                     .body("Credenciales inválidas");
         }
