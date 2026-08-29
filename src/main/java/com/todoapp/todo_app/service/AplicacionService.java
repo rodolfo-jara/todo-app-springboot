@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Locale;
 
 @Service
 public class AplicacionService {
@@ -21,7 +22,11 @@ public class AplicacionService {
 
     public AplicacionResponse crear(AplicacionRequest request) {
 
-        if (aplicacionRepository.findByCodigo(request.getCodigo()).isPresent()) {
+        String codigoNormalizado = request.getCodigo()
+                .trim()
+                .toLowerCase(Locale.ROOT);
+
+        if (aplicacionRepository.findByCodigo(codigoNormalizado).isPresent()) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "Ya existe una aplicación con ese código"
@@ -29,7 +34,7 @@ public class AplicacionService {
         }
 
         Aplicacion aplicacion = new Aplicacion(
-                request.getCodigo(),
+                codigoNormalizado,
                 request.getNombre()
         );
 
