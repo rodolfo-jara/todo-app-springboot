@@ -1,5 +1,6 @@
 package com.todoapp.todo_app.controller;
 
+import com.todoapp.todo_app.entity.Aplicacion;
 import com.todoapp.todo_app.repository.AplicacionRepository;
 import com.todoapp.todo_app.service.JwtService;
 import org.junit.jupiter.api.Test;
@@ -10,6 +11,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.hamcrest.Matchers.hasItem;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -162,6 +165,8 @@ class AplicacionControllerTest {
                 )
                 .andExpect(status().isConflict());
     }
+
+    //TEST DE CRUD DE APLICACIONES
     @Test
     void superAdminDebeCrearAplicacion() throws Exception {
 
@@ -203,5 +208,43 @@ class AplicacionControllerTest {
                         .findByCodigo("ventas-app")
                         .isPresent()
         );
+    }
+    @Test
+    void superAdminDebeListarAplicaciones() throws Exception {
+
+        Aplicacion aplicacion = new Aplicacion(
+                "app-listado-test",
+                "Aplicacion Listado Test"
+        );
+
+        aplicacionRepository.save(aplicacion);
+
+        String token = jwtService.generarToken(
+                "superadmin@test.com",
+                "ADMIN",
+                "auth-admin",
+                true
+        );
+
+        mockMvc.perform(
+                        get("/api/aplicaciones")
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + token
+                                )
+                                .header(
+                                        "X-App-Id",
+                                        "auth-admin"
+                                )
+                )
+                .andExpect(status().isOk())
+                .andExpect(
+                        jsonPath("$[*].codigo")
+                                .value(hasItem("app-listado-test"))
+                )
+                .andExpect(
+                        jsonPath("$[*].nombre")
+                                .value(hasItem("Aplicacion Listado Test"))
+                );
     }
 }
