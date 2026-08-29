@@ -108,4 +108,58 @@ class AplicacionControllerTest {
                                 .value("El código solo puede contener letras, números y guiones")
                 );
     }
+    @Test
+    void crearAplicacionConCodigoDuplicadoNormalizadoDebeRetornar409() throws Exception {
+
+        String token = jwtService.generarToken(
+                "superadmin@test.com",
+                "ADMIN",
+                "auth-admin",
+                true
+        );
+
+        String primeraAplicacion = """
+            {
+                "codigo": "app-duplicada",
+                "nombre": "Primera App"
+            }
+            """;
+
+        String segundaAplicacion = """
+            {
+                "codigo": "  APP-DUPLICADA  ",
+                "nombre": "Segunda App"
+            }
+            """;
+
+        mockMvc.perform(
+                        post("/api/aplicaciones")
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + token
+                                )
+                                .header(
+                                        "X-App-Id",
+                                        "auth-admin"
+                                )
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(primeraAplicacion)
+                )
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(
+                        post("/api/aplicaciones")
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + token
+                                )
+                                .header(
+                                        "X-App-Id",
+                                        "auth-admin"
+                                )
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(segundaAplicacion)
+                )
+                .andExpect(status().isConflict());
+    }
 }
