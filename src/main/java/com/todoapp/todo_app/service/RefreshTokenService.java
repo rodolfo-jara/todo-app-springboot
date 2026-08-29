@@ -194,4 +194,21 @@ public class RefreshTokenService {
             throw new IllegalStateException(e);
         }
     }
+
+    @Transactional
+    public long limpiarTokens() {
+
+        long sinAplicacion =
+                refreshTokenRepository.deleteByAplicacionIsNull();
+
+        long revocados =
+                refreshTokenRepository.deleteByRevocadoTrue();
+
+        long expirados =
+                refreshTokenRepository.deleteByExpiraEnBefore(
+                        Instant.now()
+                );
+
+        return sinAplicacion + revocados + expirados;
+    }
 }

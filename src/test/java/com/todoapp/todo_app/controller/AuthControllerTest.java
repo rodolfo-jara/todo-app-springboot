@@ -1,15 +1,13 @@
 package com.todoapp.todo_app.controller;
 
 
-import com.todoapp.todo_app.entity.Aplicacion;
-import com.todoapp.todo_app.entity.RolAplicacion;
-import com.todoapp.todo_app.entity.Usuario;
-import com.todoapp.todo_app.entity.UsuarioAplicacion;
+import com.todoapp.todo_app.entity.*;
 import com.todoapp.todo_app.repository.AplicacionRepository;
 import com.todoapp.todo_app.repository.RefreshTokenRepository;
 import com.todoapp.todo_app.repository.UsuarioAplicacionRepository;
 import com.todoapp.todo_app.repository.UsuarioRepository;
 import com.todoapp.todo_app.service.JwtService;
+import com.todoapp.todo_app.service.RefreshTokenService;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,6 +24,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import javax.crypto.SecretKey;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Date;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -56,6 +55,8 @@ class AuthControllerTest {
 
     @Autowired
     private UsuarioAplicacionRepository usuarioAplicacionRepository;
+    @Autowired
+    private RefreshTokenService refreshTokenService;
 
     @BeforeEach
     void prepararDatos() {
@@ -1268,5 +1269,77 @@ class AuthControllerTest {
                                 .content(segundoRefreshJson)
                 )
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void limpiarTokensDebeEliminarRevocadosYExpirados() {
+
+        Usuario usuario = usuarioRepository
+                .findByEmail("test@test.com")
+                .orElseThrow();
+
+        Aplicacion aplicacion = aplicacionRepository
+                .findByCodigo("todo-app")
+                .orElseThrow();
+
+        // Token revocado
+        RefreshToken revocado = new RefreshToken();
+        revocado.setUsuario(usuario);
+        revocado.setAplicacion(aplicacion);
+        revocado.setTokenHash("hash-revocado");
+        revocado.setCreadoEn(Instant.now());
+        revocado.setExpiraEn(
+                Instant.now().plusSeconds(3600)
+        );
+        revocado.setRevocado(true);
+
+        refreshTokenRepository.save(revocado);
+
+        // Token expirado
+        RefreshToken expirado = new RefreshToken();
+        expirado.setUsuario(usuario);
+        expirado.setAplicacion(aplicacion);
+        expirado.setTokenHash("hash-expirado");
+        expirado.setCreadoEn(
+                Instant.now().minusSeconds(7200)
+        );
+        expirado.setExpiraEn(
+                Instant.now().minusSeconds(3600)
+        );
+        expirado.setRevocado(false);
+
+        refreshTokenRepository.save(expirado);
+
+        // Token válido: debe sobrevivir
+        RefreshToken valido = new RefreshToken();
+        valido.setUsuario(usuario);
+        valido.setAplicacion(aplicacion);
+        valido.setTokenHash("hash-valido");
+        valido.setCreadoEn(Instant.now());
+        valido.setExpiraEn(
+                Instant.now().plusSeconds(3600)
+        );
+        valido.setRevocado(false);
+
+        refreshTokenRepository.save(valido);
+
+        long eliminados =
+                refreshTokenService.limpiarTokens();
+
+        org.junit.jupiter.api.Assertions.assertEquals(
+                2,
+                eliminados
+        );
+
+        org.junit.jupiter.api.Assertions.assertEquals(
+                1,
+                refreshTokenRepository.count()
+        );
+
+        org.junit.jupiter.api.Assertions.assertTrue(
+                refreshTokenRepository
+                        .findByTokenHash("hash-valido")
+                        .isPresent()
+        );
     }
 }
