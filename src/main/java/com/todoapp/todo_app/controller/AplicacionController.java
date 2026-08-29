@@ -32,7 +32,9 @@ public class AplicacionController {
     }
 
     @GetMapping
-    public ResponseEntity<List<AplicacionResponse>> listar() {
+    public ResponseEntity<List<AplicacionResponse>> listar(
+            @RequestHeader("X-App-Id") String appId
+    ) {
         return ResponseEntity.ok(aplicacionService.listar());
     }
 

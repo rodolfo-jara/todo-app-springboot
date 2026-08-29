@@ -2,9 +2,6 @@ package com.todoapp.todo_app.entity;
 
 import jakarta.persistence.*;
 
-import java.util.HashSet;
-import java.util.Set;
-
 @Entity
 @Table(name = "usuarios")
 public class Usuario {
@@ -21,23 +18,12 @@ public class Usuario {
     @Column(nullable = false)
     private String password;
 
-    private String rol;
-
     @Column(
             name = "super_admin",
             nullable = false,
             columnDefinition = "boolean default false"
     )
     private boolean superAdmin = false;
-
-    // Modelo antiguo: lo eliminaremos más adelante
-    @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(
-            name = "usuario_aplicaciones",
-            joinColumns = @JoinColumn(name = "usuario_id")
-    )
-    @Column(name = "aplicacion")
-    private Set<String> aplicaciones = new HashSet<>();
 
     public Usuario() {
     }
@@ -74,31 +60,11 @@ public class Usuario {
         this.password = password;
     }
 
-    public String getRol() {
-        return rol;
-    }
-
-    public void setRol(String rol) {
-        this.rol = rol;
-    }
-
     public boolean isSuperAdmin() {
         return superAdmin;
     }
 
     public void setSuperAdmin(boolean superAdmin) {
         this.superAdmin = superAdmin;
-    }
-
-    public Set<String> getAplicaciones() {
-        return aplicaciones;
-    }
-
-    public void setAplicaciones(Set<String> aplicaciones) {
-        this.aplicaciones = aplicaciones;
-    }
-
-    public boolean tieneAcceso(String app) {
-        return aplicaciones != null && aplicaciones.contains(app);
     }
 }

@@ -2,6 +2,7 @@ package com.todoapp.todo_app.controller;
 
 import com.todoapp.todo_app.dto.PerfilResponse;
 import com.todoapp.todo_app.dto.RegistroRequest;
+import com.todoapp.todo_app.dto.UsuarioAdminResponse;
 import com.todoapp.todo_app.entity.Usuario;
 import com.todoapp.todo_app.entity.UsuarioAplicacion;
 import com.todoapp.todo_app.service.UsuarioService;
@@ -50,10 +51,19 @@ public class UsuarioController {
 
     // Solo ADMIN puede listar usuarios (ver SecurityConfig).
     @GetMapping
-    public ResponseEntity<List<PerfilResponse>> listarUsuarios() {
-        List<PerfilResponse> perfiles = usuarioService.listarUsuarios().stream()
-                .map(u -> new PerfilResponse(u.getId(), u.getNombre(), u.getEmail(), u.getRol()))
-                .toList();
-        return ResponseEntity.ok(perfiles);
+    public ResponseEntity<List<UsuarioAdminResponse>> listarUsuarios() {
+
+        List<UsuarioAdminResponse> usuarios =
+                usuarioService.listarUsuarios()
+                        .stream()
+                        .map(u -> new UsuarioAdminResponse(
+                                u.getId(),
+                                u.getNombre(),
+                                u.getEmail(),
+                                u.isSuperAdmin()
+                        ))
+                        .toList();
+
+        return ResponseEntity.ok(usuarios);
     }
 }

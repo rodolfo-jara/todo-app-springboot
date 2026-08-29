@@ -50,8 +50,17 @@ public class SecurityConfig {
                                 "/v3/api-docs/**"
                         ).permitAll()
                         // Listar todos los usuarios: solo ADMIN.
-                        .requestMatchers(HttpMethod.GET, "/api/usuarios").hasRole("ADMIN")
-                        .requestMatchers("/api/perfil/admin").hasRole("ADMIN")
+                        // CRUD global de aplicaciones: solo SUPER_ADMIN
+                        .requestMatchers("/api/aplicaciones/**")
+                        .hasRole("SUPER_ADMIN")
+
+                        // Esto todavía lo corregiremos después
+                        .requestMatchers(HttpMethod.GET, "/api/usuarios")
+                        .hasRole("SUPER_ADMIN")
+
+                        .requestMatchers("/api/perfil/admin")
+                        .hasRole("ADMIN")
+
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(exception -> exception

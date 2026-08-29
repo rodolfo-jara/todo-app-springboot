@@ -84,7 +84,8 @@ public class AuthController {
         String accessToken = jwtService.generarToken(
                 usuario.getEmail(),
                 acceso.getRol(),
-                request.getApp()
+                request.getApp(),
+                usuario.isSuperAdmin()
         );
 
         String refreshToken = refreshTokenService.crear(usuario);
@@ -129,7 +130,8 @@ public class AuthController {
         String nuevoAccessToken = jwtService.generarToken(
                 usuario.getEmail(),
                 acceso.getRol(),
-                request.getApp()
+                request.getApp(),
+                usuario.isSuperAdmin()
         );
 
         PerfilResponse perfil = new PerfilResponse(

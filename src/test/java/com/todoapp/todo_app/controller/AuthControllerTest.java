@@ -71,10 +71,6 @@ class AuthControllerTest {
         usuario.setEmail("test@test.com");
         usuario.setPassword(passwordEncoder.encode("Password123"));
 
-        // Temporalmente mantenemos estos campos antiguos.
-        usuario.setRol("USER");
-        usuario.getAplicaciones().add("todo-app");
-
         usuario = usuarioRepository.save(usuario);
 
         // 2. Crear la aplicación
@@ -86,8 +82,6 @@ class AuthControllerTest {
         todoApp = aplicacionRepository.save(todoApp);
 
         // 3. Dar acceso del usuario a todo-app
-        // 1. En @BeforeEach, alrededor de la línea 88
-
         UsuarioAplicacion acceso = new UsuarioAplicacion(
                 usuario,
                 todoApp,

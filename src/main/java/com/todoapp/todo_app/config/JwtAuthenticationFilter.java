@@ -6,14 +6,17 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.ArrayList;
+import java.util.List;
 
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
     private final JwtService jwtService;
 
     public JwtAuthenticationFilter(JwtService jwtService) {
@@ -45,9 +48,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String rol = jwtService.extraerRol(token);
             String appToken = jwtService.extraerApp(token);
 
-            String appRequest = request.getHeader("X-App-Id");
+            boolean superAdmin =
+                    jwtService.extraerSuperAdmin(token);
 
-            if (appRequest == null || !appRequest.equals(appToken)) {
+            String appRequest =
+                    request.getHeader("X-App-Id");
+
+            if (appRequest == null ||
+                    !appRequest.equals(appToken)) {
+
                 response.sendError(
                         HttpServletResponse.SC_UNAUTHORIZED,
                         "Token no válido para esta aplicación"
@@ -55,13 +64,30 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 return;
             }
 
+            List<GrantedAuthority> authorities =
+                    new ArrayList<>();
+
+            // Rol dentro de la aplicación
+            authorities.add(
+                    new SimpleGrantedAuthority(
+                            "ROLE_" + rol
+                    )
+            );
+
+            // Permiso global de plataforma
+            if (superAdmin) {
+                authorities.add(
+                        new SimpleGrantedAuthority(
+                                "ROLE_SUPER_ADMIN"
+                        )
+                );
+            }
+
             UsernamePasswordAuthenticationToken authentication =
                     new UsernamePasswordAuthenticationToken(
                             email,
                             null,
-                            Collections.singletonList(
-                                    new SimpleGrantedAuthority("ROLE_" + rol)
-                            )
+                            authorities
                     );
 
             SecurityContextHolder
