@@ -88,7 +88,10 @@ public class AuthController {
                 usuario.isSuperAdmin()
         );
 
-        String refreshToken = refreshTokenService.crear(usuario);
+        String refreshToken = refreshTokenService.crear(
+                usuario,
+                acceso.getAplicacion()
+        );
 
         PerfilResponse perfil = new PerfilResponse(
                 usuario.getId(),
@@ -104,7 +107,10 @@ public class AuthController {
     @PostMapping("/refresh")
     public ResponseEntity<?> refresh(@Valid @RequestBody RefreshRequest request) {
 
-        var resultadoOpt = refreshTokenService.rotar(request.getRefreshToken());
+        var resultadoOpt = refreshTokenService.rotar(
+                request.getRefreshToken(),
+                request.getApp()
+        );
 
         if (resultadoOpt.isEmpty()) {
             return ResponseEntity.status(401).body("Refresh token inválido o expirado");
@@ -115,22 +121,16 @@ public class AuthController {
 
         // Se revalida el acceso a la app: si en el camino le quitaron
         // el acceso, el refresh no le regala un token nuevo igual.
-        UsuarioAplicacion acceso = usuarioAplicacionRepository
-                .findByUsuarioEmailAndAplicacionCodigo(
-                        usuario.getEmail(),
-                        request.getApp()
-                )
-                .orElse(null);
+        UsuarioAplicacion acceso = resultado.acceso();
 
-        if (acceso == null || !acceso.isActivo()) {
-            return ResponseEntity.status(401)
-                    .body("No tienes acceso a esta aplicación");
-        }
+        String appCodigo = acceso
+                .getAplicacion()
+                .getCodigo();
 
         String nuevoAccessToken = jwtService.generarToken(
                 usuario.getEmail(),
                 acceso.getRol(),
-                request.getApp(),
+                appCodigo,
                 usuario.isSuperAdmin()
         );
 

@@ -877,4 +877,396 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.email").value("test@test.com"))
                 .andExpect(jsonPath("$.password").doesNotExist());
     }
+
+
+    @Test
+    void superAdminDebeAccederAAplicaciones() throws Exception {
+
+        Usuario usuario = usuarioRepository
+                .findByEmail("test@test.com")
+                .orElseThrow();
+
+        usuario.setSuperAdmin(true);
+        usuarioRepository.save(usuario);
+
+        Aplicacion authAdmin = new Aplicacion(
+                "auth-admin",
+                "Authentication Admin"
+        );
+
+        authAdmin = aplicacionRepository.save(authAdmin);
+
+        UsuarioAplicacion accesoAdmin = new UsuarioAplicacion(
+                usuario,
+                authAdmin,
+                RolAplicacion.ADMIN
+        );
+
+        usuarioAplicacionRepository.save(accesoAdmin);
+
+        String loginJson = """
+        {
+            "email": "test@test.com",
+            "password": "Password123",
+            "app": "auth-admin"
+        }
+        """;
+
+        String respuesta = mockMvc.perform(
+                        post("/api/auth/login")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(loginJson)
+                )
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String token = new tools.jackson.databind.ObjectMapper()
+                .readTree(respuesta)
+                .get("token")
+                .asText();
+
+        org.junit.jupiter.api.Assertions.assertTrue(
+                jwtService.extraerSuperAdmin(token)
+        );
+
+        mockMvc.perform(
+                        get("/api/aplicaciones")
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + token
+                                )
+                                .header(
+                                        "X-App-Id",
+                                        "auth-admin"
+                                )
+                )
+                .andExpect(status().isOk());
+    }
+    @Test
+    void adminNormalNoDebeAccederAAplicaciones() throws Exception {
+
+        UsuarioAplicacion acceso = usuarioAplicacionRepository
+                .findByUsuarioEmailAndAplicacionCodigo(
+                        "test@test.com",
+                        "todo-app"
+                )
+                .orElseThrow();
+
+        acceso.setRol("ADMIN");
+        usuarioAplicacionRepository.save(acceso);
+
+        String loginJson = """
+        {
+            "email": "test@test.com",
+            "password": "Password123",
+            "app": "todo-app"
+        }
+        """;
+
+        String respuesta = mockMvc.perform(
+                        post("/api/auth/login")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(loginJson)
+                )
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String token = new tools.jackson.databind.ObjectMapper()
+                .readTree(respuesta)
+                .get("token")
+                .asText();
+
+        org.junit.jupiter.api.Assertions.assertFalse(
+                jwtService.extraerSuperAdmin(token)
+        );
+
+        mockMvc.perform(
+                        get("/api/aplicaciones")
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + token
+                                )
+                                .header(
+                                        "X-App-Id",
+                                        "todo-app"
+                                )
+                )
+                .andExpect(status().isForbidden());
+    }
+    @Test
+    void userNormalNoDebeAccederAAplicaciones() throws Exception {
+
+        String loginJson = """
+        {
+            "email": "test@test.com",
+            "password": "Password123",
+            "app": "todo-app"
+        }
+        """;
+
+        String respuesta = mockMvc.perform(
+                        post("/api/auth/login")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(loginJson)
+                )
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String token = new tools.jackson.databind.ObjectMapper()
+                .readTree(respuesta)
+                .get("token")
+                .asText();
+
+        mockMvc.perform(
+                        get("/api/aplicaciones")
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + token
+                                )
+                                .header(
+                                        "X-App-Id",
+                                        "todo-app"
+                                )
+                )
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void refreshTokenDeUnaAppNoDebeServirParaOtraApp() throws Exception {
+
+        Aplicacion demoApp = new Aplicacion(
+                "demoapp",
+                "Demo App"
+        );
+
+        aplicacionRepository.save(demoApp);
+
+        String loginJson = """
+        {
+            "email": "test@test.com",
+            "password": "Password123",
+            "app": "todo-app"
+        }
+        """;
+
+        String respuestaLogin = mockMvc.perform(
+                        post("/api/auth/login")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(loginJson)
+                )
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String refreshToken = new tools.jackson.databind.ObjectMapper()
+                .readTree(respuestaLogin)
+                .get("refreshToken")
+                .asText();
+
+        String refreshIncorrectoJson = """
+        {
+            "refreshToken": "%s",
+            "app": "demoapp"
+        }
+        """.formatted(refreshToken);
+
+        mockMvc.perform(
+                        post("/api/auth/refresh")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(refreshIncorrectoJson)
+                )
+                .andExpect(status().isUnauthorized());
+
+        // El intento incorrecto NO debe revocar el token original
+        String refreshCorrectoJson = """
+        {
+            "refreshToken": "%s",
+            "app": "todo-app"
+        }
+        """.formatted(refreshToken);
+
+        mockMvc.perform(
+                        post("/api/auth/refresh")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(refreshCorrectoJson)
+                )
+                .andExpect(status().isOk());
+    }
+    @Test
+    void refreshConAplicacionDesactivadaDebeRetornar401() throws Exception {
+
+        String loginJson = """
+        {
+            "email": "test@test.com",
+            "password": "Password123",
+            "app": "todo-app"
+        }
+        """;
+
+        String respuestaLogin = mockMvc.perform(
+                        post("/api/auth/login")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(loginJson)
+                )
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String refreshToken = new tools.jackson.databind.ObjectMapper()
+                .readTree(respuestaLogin)
+                .get("refreshToken")
+                .asText();
+
+        Aplicacion aplicacion = aplicacionRepository
+                .findByCodigo("todo-app")
+                .orElseThrow();
+
+        aplicacion.setActivo(false);
+        aplicacionRepository.save(aplicacion);
+
+        String refreshJson = """
+        {
+            "refreshToken": "%s",
+            "app": "todo-app"
+        }
+        """.formatted(refreshToken);
+
+        mockMvc.perform(
+                        post("/api/auth/refresh")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(refreshJson)
+                )
+                .andExpect(status().isUnauthorized());
+    }
+    @Test
+    void refreshConAccesoDesactivadoDebeRetornar401() throws Exception {
+
+        String loginJson = """
+        {
+            "email": "test@test.com",
+            "password": "Password123",
+            "app": "todo-app"
+        }
+        """;
+
+        String respuestaLogin = mockMvc.perform(
+                        post("/api/auth/login")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(loginJson)
+                )
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String refreshToken = new tools.jackson.databind.ObjectMapper()
+                .readTree(respuestaLogin)
+                .get("refreshToken")
+                .asText();
+
+        UsuarioAplicacion acceso = usuarioAplicacionRepository
+                .findByUsuarioEmailAndAplicacionCodigo(
+                        "test@test.com",
+                        "todo-app"
+                )
+                .orElseThrow();
+
+        acceso.setActivo(false);
+        usuarioAplicacionRepository.save(acceso);
+
+        String refreshJson = """
+        {
+            "refreshToken": "%s",
+            "app": "todo-app"
+        }
+        """.formatted(refreshToken);
+
+        mockMvc.perform(
+                        post("/api/auth/refresh")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(refreshJson)
+                )
+                .andExpect(status().isUnauthorized());
+    }
+    @Test
+    void refreshTokenRotadoNoDebePoderReutilizarse() throws Exception {
+
+        String loginJson = """
+        {
+            "email": "test@test.com",
+            "password": "Password123",
+            "app": "todo-app"
+        }
+        """;
+
+        String respuestaLogin = mockMvc.perform(
+                        post("/api/auth/login")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(loginJson)
+                )
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String refreshTokenOriginal =
+                new tools.jackson.databind.ObjectMapper()
+                        .readTree(respuestaLogin)
+                        .get("refreshToken")
+                        .asText();
+
+        String primerRefreshJson = """
+        {
+            "refreshToken": "%s",
+            "app": "todo-app"
+        }
+        """.formatted(refreshTokenOriginal);
+
+        String respuestaRefresh = mockMvc.perform(
+                        post("/api/auth/refresh")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(primerRefreshJson)
+                )
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String nuevoRefreshToken =
+                new tools.jackson.databind.ObjectMapper()
+                        .readTree(respuestaRefresh)
+                        .get("refreshToken")
+                        .asText();
+
+        // El refresh original ya fue utilizado y debe estar revocado
+        mockMvc.perform(
+                        post("/api/auth/refresh")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(primerRefreshJson)
+                )
+                .andExpect(status().isUnauthorized());
+
+        // El nuevo refresh sí debe funcionar
+        String segundoRefreshJson = """
+        {
+            "refreshToken": "%s",
+            "app": "todo-app"
+        }
+        """.formatted(nuevoRefreshToken);
+
+        mockMvc.perform(
+                        post("/api/auth/refresh")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(segundoRefreshJson)
+                )
+                .andExpect(status().isOk());
+    }
 }
