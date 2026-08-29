@@ -247,4 +247,61 @@ class AplicacionControllerTest {
                                 .value(hasItem("Aplicacion Listado Test"))
                 );
     }
+    @Test
+    void superAdminDebeBuscarAplicacionPorId() throws Exception {
+
+        Aplicacion aplicacion = new Aplicacion(
+                "app-busqueda-test",
+                "Aplicacion Busqueda Test"
+        );
+
+        Aplicacion guardada = aplicacionRepository.save(aplicacion);
+
+        String token = jwtService.generarToken(
+                "superadmin@test.com",
+                "ADMIN",
+                "auth-admin",
+                true
+        );
+
+        mockMvc.perform(
+                        get("/api/aplicaciones/{id}", guardada.getId())
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + token
+                                )
+                                .header(
+                                        "X-App-Id",
+                                        "auth-admin"
+                                )
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(guardada.getId()))
+                .andExpect(jsonPath("$.codigo").value("app-busqueda-test"))
+                .andExpect(jsonPath("$.nombre").value("Aplicacion Busqueda Test"))
+                .andExpect(jsonPath("$.activo").value(true));
+    }
+    @Test
+    void buscarAplicacionInexistenteDebeRetornar404() throws Exception {
+
+        String token = jwtService.generarToken(
+                "superadmin@test.com",
+                "ADMIN",
+                "auth-admin",
+                true
+        );
+
+        mockMvc.perform(
+                        get("/api/aplicaciones/{id}", 999999L)
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + token
+                                )
+                                .header(
+                                        "X-App-Id",
+                                        "auth-admin"
+                                )
+                )
+                .andExpect(status().isNotFound());
+    }
 }
