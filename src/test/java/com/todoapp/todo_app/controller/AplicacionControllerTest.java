@@ -1,7 +1,10 @@
 package com.todoapp.todo_app.controller;
 
 import com.todoapp.todo_app.entity.Aplicacion;
+import com.todoapp.todo_app.entity.RefreshToken;
 import com.todoapp.todo_app.repository.AplicacionRepository;
+import com.todoapp.todo_app.repository.RefreshTokenRepository;
+import com.todoapp.todo_app.repository.UsuarioRepository;
 import com.todoapp.todo_app.service.JwtService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,14 +13,23 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import com.todoapp.todo_app.entity.RefreshToken;
+import com.todoapp.todo_app.entity.Usuario;
+import com.todoapp.todo_app.repository.RefreshTokenRepository;
+import com.todoapp.todo_app.repository.UsuarioRepository;
 
+import java.time.Instant;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
@@ -31,6 +43,11 @@ class AplicacionControllerTest {
 
     @Autowired
     private AplicacionRepository aplicacionRepository;
+    @Autowired
+    private RefreshTokenRepository refreshTokenRepository;
+
+    @Autowired
+    private UsuarioRepository usuarioRepository;
 
     @Test
     void crearAplicacionDebeNormalizarCodigo() throws Exception {
@@ -303,5 +320,276 @@ class AplicacionControllerTest {
                                 )
                 )
                 .andExpect(status().isNotFound());
+    }
+    @Test
+    void superAdminDebeEditarNombreDeAplicacion() throws Exception {
+
+        Aplicacion aplicacion = new Aplicacion(
+                "app-edicion-test",
+                "Nombre Original"
+        );
+
+        Aplicacion guardada = aplicacionRepository.save(aplicacion);
+
+        String token = jwtService.generarToken(
+                "superadmin@test.com",
+                "ADMIN",
+                "auth-admin",
+                true
+        );
+
+        String json = """
+            {
+                "nombre": "Nombre Actualizado"
+            }
+            """;
+
+        mockMvc.perform(
+                        put("/api/aplicaciones/{id}", guardada.getId())
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + token
+                                )
+                                .header(
+                                        "X-App-Id",
+                                        "auth-admin"
+                                )
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(guardada.getId()))
+                .andExpect(jsonPath("$.codigo").value("app-edicion-test"))
+                .andExpect(jsonPath("$.nombre").value("Nombre Actualizado"))
+                .andExpect(jsonPath("$.activo").value(true));
+    }
+    @Test
+    void editarAplicacionInexistenteDebeRetornar404() throws Exception {
+
+        String token = jwtService.generarToken(
+                "superadmin@test.com",
+                "ADMIN",
+                "auth-admin",
+                true
+        );
+
+        String json = """
+            {
+                "nombre": "Nuevo Nombre"
+            }
+            """;
+
+        mockMvc.perform(
+                        put("/api/aplicaciones/{id}", 999999L)
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + token
+                                )
+                                .header(
+                                        "X-App-Id",
+                                        "auth-admin"
+                                )
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void superAdminDebeDesactivarAplicacion() throws Exception {
+
+        Aplicacion aplicacion = new Aplicacion(
+                "app-desactivar-test",
+                "App Desactivar Test"
+        );
+
+        Aplicacion guardada = aplicacionRepository.save(aplicacion);
+
+        String token = jwtService.generarToken(
+                "superadmin@test.com",
+                "ADMIN",
+                "auth-admin",
+                true
+        );
+
+        String json = """
+            {
+                "activo": false
+            }
+            """;
+
+        mockMvc.perform(
+                        patch("/api/aplicaciones/{id}/estado", guardada.getId())
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-App-Id", "auth-admin")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(guardada.getId()))
+                .andExpect(jsonPath("$.codigo").value("app-desactivar-test"))
+                .andExpect(jsonPath("$.activo").value(false));
+    }
+    @Test
+    void superAdminDebeActivarAplicacion() throws Exception {
+
+        Aplicacion aplicacion = new Aplicacion(
+                "app-activar-test",
+                "App Activar Test"
+        );
+
+        aplicacion.setActivo(false);
+
+        Aplicacion guardada = aplicacionRepository.save(aplicacion);
+
+        String token = jwtService.generarToken(
+                "superadmin@test.com",
+                "ADMIN",
+                "auth-admin",
+                true
+        );
+
+        String json = """
+            {
+                "activo": true
+            }
+            """;
+
+        mockMvc.perform(
+                        patch("/api/aplicaciones/{id}/estado", guardada.getId())
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-App-Id", "auth-admin")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.activo").value(true));
+    }
+    @Test
+    void noDebePermitirDesactivarAuthAdmin() throws Exception {
+
+        Aplicacion authAdmin = aplicacionRepository
+                .findByCodigo("auth-admin")
+                .orElseGet(() ->
+                        aplicacionRepository.save(
+                                new Aplicacion(
+                                        "auth-admin",
+                                        "Auth Admin"
+                                )
+                        )
+                );
+
+        String token = jwtService.generarToken(
+                "superadmin@test.com",
+                "ADMIN",
+                "auth-admin",
+                true
+        );
+
+        String json = """
+            {
+                "activo": false
+            }
+            """;
+
+        mockMvc.perform(
+                        patch("/api/aplicaciones/{id}/estado", authAdmin.getId())
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-App-Id", "auth-admin")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void desactivarAplicacionDebeRevocarSoloSusRefreshTokens() throws Exception {
+
+        Usuario usuario = new Usuario();
+        usuario.setNombre("Usuario Refresh Test");
+        usuario.setEmail("refresh-app-test@test.com");
+        usuario.setPassword("password-test");
+
+        usuario = usuarioRepository.save(usuario);
+
+        Aplicacion appA = new Aplicacion(
+                "refresh-app-a",
+                "Refresh App A"
+        );
+
+        Aplicacion appB = new Aplicacion(
+                "refresh-app-b",
+                "Refresh App B"
+        );
+
+        appA = aplicacionRepository.save(appA);
+        appB = aplicacionRepository.save(appB);
+
+        RefreshToken tokenA1 = new RefreshToken();
+        tokenA1.setTokenHash("hash-refresh-app-a-1");
+        tokenA1.setUsuario(usuario);
+        tokenA1.setAplicacion(appA);
+        tokenA1.setCreadoEn(Instant.now());
+        tokenA1.setExpiraEn(Instant.now().plusSeconds(3600));
+        tokenA1.setRevocado(false);
+
+        RefreshToken tokenA2 = new RefreshToken();
+        tokenA2.setTokenHash("hash-refresh-app-a-2");
+        tokenA2.setUsuario(usuario);
+        tokenA2.setAplicacion(appA);
+        tokenA2.setCreadoEn(Instant.now());
+        tokenA2.setExpiraEn(Instant.now().plusSeconds(3600));
+        tokenA2.setRevocado(false);
+
+        RefreshToken tokenB = new RefreshToken();
+        tokenB.setTokenHash("hash-refresh-app-b");
+        tokenB.setUsuario(usuario);
+        tokenB.setAplicacion(appB);
+        tokenB.setCreadoEn(Instant.now());
+        tokenB.setExpiraEn(Instant.now().plusSeconds(3600));
+        tokenB.setRevocado(false);
+
+        tokenA1 = refreshTokenRepository.save(tokenA1);
+        tokenA2 = refreshTokenRepository.save(tokenA2);
+        tokenB = refreshTokenRepository.save(tokenB);
+
+        String token = jwtService.generarToken(
+                "superadmin@test.com",
+                "ADMIN",
+                "auth-admin",
+                true
+        );
+
+        String json = """
+            {
+                "activo": false
+            }
+            """;
+
+        mockMvc.perform(
+                        patch("/api/aplicaciones/{id}/estado", appA.getId())
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-App-Id", "auth-admin")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.activo").value(false));
+
+        RefreshToken tokenA1Actualizado =
+                refreshTokenRepository.findById(tokenA1.getId())
+                        .orElseThrow();
+
+        RefreshToken tokenA2Actualizado =
+                refreshTokenRepository.findById(tokenA2.getId())
+                        .orElseThrow();
+
+        RefreshToken tokenBActualizado =
+                refreshTokenRepository.findById(tokenB.getId())
+                        .orElseThrow();
+
+        assertTrue(tokenA1Actualizado.isRevocado());
+        assertTrue(tokenA2Actualizado.isRevocado());
+        assertFalse(tokenBActualizado.isRevocado());
     }
 }

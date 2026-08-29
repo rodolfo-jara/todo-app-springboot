@@ -1,7 +1,9 @@
 package com.todoapp.todo_app.controller;
 
+import com.todoapp.todo_app.dto.AplicacionEstadoRequest;
 import com.todoapp.todo_app.dto.AplicacionRequest;
 import com.todoapp.todo_app.dto.AplicacionResponse;
+import com.todoapp.todo_app.dto.AplicacionUpdateRequest;
 import com.todoapp.todo_app.service.AplicacionService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -44,6 +46,25 @@ public class AplicacionController {
     ) {
         return ResponseEntity.ok(
                 aplicacionService.buscarPorId(id)
+        );
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<AplicacionResponse> editar(
+            @PathVariable Long id,
+            @Valid @RequestBody AplicacionUpdateRequest request
+    ) {
+        return ResponseEntity.ok(
+                aplicacionService.editar(id, request)
+        );
+    }
+    @PatchMapping("/{id}/estado")
+    public ResponseEntity<AplicacionResponse> cambiarEstado(
+            @PathVariable Long id,
+            @Valid @RequestBody AplicacionEstadoRequest request
+    ) {
+        return ResponseEntity.ok(
+                aplicacionService.cambiarEstado(id, request)
         );
     }
 }

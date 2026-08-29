@@ -1,13 +1,15 @@
 package com.todoapp.todo_app.service;
 
+import com.todoapp.todo_app.dto.AplicacionEstadoRequest;
 import com.todoapp.todo_app.dto.AplicacionRequest;
 import com.todoapp.todo_app.dto.AplicacionResponse;
+import com.todoapp.todo_app.dto.AplicacionUpdateRequest;
 import com.todoapp.todo_app.entity.Aplicacion;
 import com.todoapp.todo_app.repository.AplicacionRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
-
+import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Locale;
 
@@ -15,9 +17,14 @@ import java.util.Locale;
 public class AplicacionService {
 
     private final AplicacionRepository aplicacionRepository;
+    private final RefreshTokenService refreshTokenService;
 
-    public AplicacionService(AplicacionRepository aplicacionRepository) {
+    public AplicacionService(
+            AplicacionRepository aplicacionRepository,
+            RefreshTokenService refreshTokenService
+    ) {
         this.aplicacionRepository = aplicacionRepository;
+        this.refreshTokenService = refreshTokenService;
     }
 
     public AplicacionResponse crear(AplicacionRequest request) {
@@ -59,6 +66,59 @@ public class AplicacionService {
                 ));
 
         return convertirAResponse(aplicacion);
+    }
+
+    public AplicacionResponse editar(
+            Long id,
+            AplicacionUpdateRequest request
+    ) {
+
+        Aplicacion aplicacion = aplicacionRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Aplicación no encontrada"
+                ));
+
+        aplicacion.setNombre(request.getNombre());
+
+        Aplicacion guardada = aplicacionRepository.save(aplicacion);
+
+        return convertirAResponse(guardada);
+    }
+
+    @Transactional
+    public AplicacionResponse cambiarEstado(
+            Long id,
+            AplicacionEstadoRequest request
+    ) {
+
+        Aplicacion aplicacion = aplicacionRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Aplicación no encontrada"
+                ));
+
+        if (!request.getActivo()
+                && "auth-admin".equals(aplicacion.getCodigo())) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "La aplicación auth-admin no puede desactivarse"
+            );
+        }
+
+        boolean seEstaDesactivando =
+                aplicacion.isActivo() && !request.getActivo();
+
+        aplicacion.setActivo(request.getActivo());
+
+        Aplicacion guardada = aplicacionRepository.save(aplicacion);
+
+        if (seEstaDesactivando) {
+            refreshTokenService.revocarTodosPorAplicacion(guardada);
+        }
+
+        return convertirAResponse(guardada);
     }
 
     private AplicacionResponse convertirAResponse(Aplicacion aplicacion) {

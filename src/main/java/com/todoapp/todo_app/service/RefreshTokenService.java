@@ -163,7 +163,11 @@ public class RefreshTokenService {
                     refreshTokenRepository.save(rt);
                 });
     }
-
+    @Transactional
+    public int revocarTodosPorAplicacion(Aplicacion aplicacion) {
+        return refreshTokenRepository
+                .revocarTodosPorAplicacion(aplicacion);
+    }
     private String generarTokenAleatorio() {
 
         byte[] bytes = new byte[32];
