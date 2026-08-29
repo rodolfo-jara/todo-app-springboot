@@ -71,4 +71,41 @@ class AplicacionControllerTest {
                         .isPresent()
         );
     }
+
+    @Test
+    void crearAplicacionConCodigoInvalidoDebeRetornar400() throws Exception {
+
+        String token = jwtService.generarToken(
+                "superadmin@test.com",
+                "ADMIN",
+                "auth-admin",
+                true
+        );
+
+        String json = """
+            {
+                "codigo": "mi_app",
+                "nombre": "Mi App"
+            }
+            """;
+
+        mockMvc.perform(
+                        post("/api/aplicaciones")
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + token
+                                )
+                                .header(
+                                        "X-App-Id",
+                                        "auth-admin"
+                                )
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(
+                        jsonPath("$.codigo")
+                                .value("El código solo puede contener letras, números y guiones")
+                );
+    }
 }
