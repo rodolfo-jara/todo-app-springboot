@@ -162,4 +162,46 @@ class AplicacionControllerTest {
                 )
                 .andExpect(status().isConflict());
     }
+    @Test
+    void superAdminDebeCrearAplicacion() throws Exception {
+
+        String token = jwtService.generarToken(
+                "superadmin@test.com",
+                "ADMIN",
+                "auth-admin",
+                true
+        );
+
+        String json = """
+            {
+                "codigo": "ventas-app",
+                "nombre": "Ventas App"
+            }
+            """;
+
+        mockMvc.perform(
+                        post("/api/aplicaciones")
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + token
+                                )
+                                .header(
+                                        "X-App-Id",
+                                        "auth-admin"
+                                )
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").exists())
+                .andExpect(jsonPath("$.codigo").value("ventas-app"))
+                .andExpect(jsonPath("$.nombre").value("Ventas App"))
+                .andExpect(jsonPath("$.activo").value(true));
+
+        assertTrue(
+                aplicacionRepository
+                        .findByCodigo("ventas-app")
+                        .isPresent()
+        );
+    }
 }
