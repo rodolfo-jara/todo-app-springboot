@@ -598,6 +598,58 @@ class UsuarioAdminControllerTest {
                 )
                 .andExpect(status().isForbidden());
     }
+    @Test
+    void asignarAplicacionDebeReactivarAccesoInactivoComoUser() throws Exception {
+
+        Usuario usuario = new Usuario();
+        usuario.setNombre("Usuario Reactivacion");
+        usuario.setEmail("usuario-reactivacion@test.com");
+        usuario.setPassword("password-test");
+
+        Usuario guardado = usuarioRepository.save(usuario);
+
+        Aplicacion aplicacion = aplicacionRepository.save(
+                new Aplicacion(
+                        "app-reactivacion-test",
+                        "App Reactivacion Test"
+                )
+        );
+
+        UsuarioAplicacion acceso = new UsuarioAplicacion(
+                guardado,
+                aplicacion,
+                RolAplicacion.ADMIN
+        );
+
+        acceso.setActivo(false);
+
+        usuarioAplicacionRepository.save(acceso);
+
+        String token = jwtService.generarToken(
+                "superadmin@test.com",
+                "ADMIN",
+                "auth-admin",
+                true
+        );
+
+        String json = """
+            {
+                "aplicacionId": %d
+            }
+            """.formatted(aplicacion.getId());
+
+        mockMvc.perform(
+                        post("/api/usuarios/{id}/aplicaciones", guardado.getId())
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-App-Id", "auth-admin")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.aplicacionId").value(aplicacion.getId()))
+                .andExpect(jsonPath("$.rol").value("USER"))
+                .andExpect(jsonPath("$.activo").value(true));
+    }
 
 
 }
