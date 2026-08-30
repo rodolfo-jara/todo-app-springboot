@@ -170,4 +170,22 @@ public class UsuarioController {
 
         return ResponseEntity.ok(response);
     }
+    @PostMapping("/global")
+    public ResponseEntity<UsuarioAdminResponse> crearUsuarioGlobal(
+            @Valid @RequestBody CrearUsuarioAdminRequest request
+    ) {
+
+        Usuario usuario =
+                usuarioService.crearUsuarioGlobal(request);
+
+        UsuarioAdminResponse response =
+                new UsuarioAdminResponse(
+                        usuario.getId(),
+                        usuario.getNombre(),
+                        usuario.getEmail(),
+                        usuario.isSuperAdmin()
+                );
+
+        return ResponseEntity.status(201).body(response);
+    }
 }

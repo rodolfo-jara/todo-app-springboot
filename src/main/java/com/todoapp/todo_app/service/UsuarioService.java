@@ -16,7 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-
+import com.todoapp.todo_app.dto.CrearUsuarioAdminRequest;
 @Service
 public class UsuarioService {
     private final UsuarioRepository usuarioRepository;
@@ -268,5 +268,39 @@ public class UsuarioService {
         acceso.setRol(nuevoRol.name());
 
         return usuarioAplicacionRepository.save(acceso);
+    }
+    @Transactional
+    public Usuario crearUsuarioGlobal(
+            CrearUsuarioAdminRequest request
+    ) {
+
+        String emailNormalizado = request.getEmail()
+                .trim()
+                .toLowerCase();
+
+        if (usuarioRepository.findByEmail(emailNormalizado).isPresent()) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "El email ya está registrado"
+            );
+        }
+
+        Usuario usuario = new Usuario();
+        usuario.setNombre(request.getNombre().trim());
+        usuario.setEmail(emailNormalizado);
+        usuario.setPassword(
+                passwordEncoder.encode(request.getPassword())
+        );
+        usuario.setSuperAdmin(false);
+
+        try {
+            return usuarioRepository.save(usuario);
+
+        } catch (DataIntegrityViolationException e) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "El email ya está registrado"
+            );
+        }
     }
 }

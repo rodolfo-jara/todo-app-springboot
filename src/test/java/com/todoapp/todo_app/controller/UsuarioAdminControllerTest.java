@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.http.MediaType;
@@ -48,7 +49,8 @@ class UsuarioAdminControllerTest {
     private UsuarioAplicacionRepository usuarioAplicacionRepository;
     @Autowired
     private RefreshTokenRepository refreshTokenRepository;
-
+    @Autowired
+    private PasswordEncoder passwordEncoder;
     @Test
     void superAdminDebeListarTodosLosUsuarios() throws Exception {
 
@@ -1240,6 +1242,148 @@ class UsuarioAdminControllerTest {
                                 guardado.getId(),
                                 aplicacion.getId()
                         )
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-App-Id", "auth-admin")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void superAdminDebeCrearUsuarioGlobal() throws Exception {
+
+        String token = jwtService.generarToken(
+                "superadmin@test.com",
+                "ADMIN",
+                "auth-admin",
+                true
+        );
+
+        String json = """
+            {
+                "nombre": "  Usuario Global Nuevo  ",
+                "email": "USUARIO-NUEVO@TEST.COM",
+                "password": "Password123"
+            }
+            """;
+
+        mockMvc.perform(
+                        post("/api/usuarios/global")
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-App-Id", "auth-admin")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").exists())
+                .andExpect(jsonPath("$.nombre").value("Usuario Global Nuevo"))
+                .andExpect(jsonPath("$.email").value("usuario-nuevo@test.com"))
+                .andExpect(jsonPath("$.superAdmin").value(false))
+                .andExpect(jsonPath("$.password").doesNotExist());
+
+        Usuario usuario = usuarioRepository
+                .findByEmail("usuario-nuevo@test.com")
+                .orElseThrow();
+
+        org.junit.jupiter.api.Assertions.assertTrue(
+                passwordEncoder.matches(
+                        "Password123",
+                        usuario.getPassword()
+                )
+        );
+
+        org.junit.jupiter.api.Assertions.assertFalse(
+                usuario.isSuperAdmin()
+        );
+
+        org.junit.jupiter.api.Assertions.assertTrue(
+                usuarioAplicacionRepository
+                        .findByUsuarioId(usuario.getId())
+                        .isEmpty()
+        );
+    }
+    @Test
+    void crearUsuarioGlobalConEmailDuplicadoDebeRetornar409() throws Exception {
+
+        Usuario existente = new Usuario();
+        existente.setNombre("Usuario Existente");
+        existente.setEmail("global-duplicado@test.com");
+        existente.setPassword("password-test");
+
+        usuarioRepository.save(existente);
+
+        String token = jwtService.generarToken(
+                "superadmin@test.com",
+                "ADMIN",
+                "auth-admin",
+                true
+        );
+
+        String json = """
+            {
+                "nombre": "Otro Usuario",
+                "email": "GLOBAL-DUPLICADO@TEST.COM",
+                "password": "Password123"
+            }
+            """;
+
+        mockMvc.perform(
+                        post("/api/usuarios/global")
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-App-Id", "auth-admin")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isConflict());
+    }
+    @Test
+    void adminNormalNoDebeCrearUsuarioGlobal() throws Exception {
+
+        String token = jwtService.generarToken(
+                "admin@test.com",
+                "ADMIN",
+                "todo-app",
+                false
+        );
+
+        String json = """
+            {
+                "nombre": "Usuario Prohibido",
+                "email": "usuario-prohibido@test.com",
+                "password": "Password123"
+            }
+            """;
+
+        mockMvc.perform(
+                        post("/api/usuarios/global")
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-App-Id", "todo-app")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isForbidden());
+    }
+    @Test
+    void crearUsuarioGlobalConEmailInvalidoDebeRetornar400() throws Exception {
+
+        String token = jwtService.generarToken(
+                "superadmin@test.com",
+                "ADMIN",
+                "auth-admin",
+                true
+        );
+
+        String json = """
+            {
+                "nombre": "Usuario Email Malo",
+                "email": "esto-no-es-un-email",
+                "password": "Password123"
+            }
+            """;
+
+        mockMvc.perform(
+                        post("/api/usuarios/global")
                                 .header("Authorization", "Bearer " + token)
                                 .header("X-App-Id", "auth-admin")
                                 .contentType(MediaType.APPLICATION_JSON)
