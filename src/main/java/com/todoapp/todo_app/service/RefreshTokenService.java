@@ -215,4 +215,15 @@ public class RefreshTokenService {
 
         return sinAplicacion + revocados + expirados;
     }
+    @Transactional
+    public int revocarTodosPorUsuarioYAplicacion(
+            Usuario usuario,
+            Aplicacion aplicacion
+    ) {
+        return refreshTokenRepository
+                .revocarTodosPorUsuarioYAplicacion(
+                        usuario,
+                        aplicacion
+                );
+    }
 }

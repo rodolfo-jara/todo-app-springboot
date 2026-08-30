@@ -1,10 +1,8 @@
 package com.todoapp.todo_app.controller;
 
-import com.todoapp.todo_app.entity.Aplicacion;
-import com.todoapp.todo_app.entity.RolAplicacion;
-import com.todoapp.todo_app.entity.Usuario;
-import com.todoapp.todo_app.entity.UsuarioAplicacion;
+import com.todoapp.todo_app.entity.*;
 import com.todoapp.todo_app.repository.AplicacionRepository;
+import com.todoapp.todo_app.repository.RefreshTokenRepository;
 import com.todoapp.todo_app.repository.UsuarioAplicacionRepository;
 import com.todoapp.todo_app.repository.UsuarioRepository;
 import com.todoapp.todo_app.service.JwtService;
@@ -16,6 +14,15 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.http.MediaType;
 
+import java.time.Instant;
+import com.todoapp.todo_app.entity.RefreshToken;
+import com.todoapp.todo_app.repository.RefreshTokenRepository;
+
+import java.time.Instant;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -40,6 +47,8 @@ class UsuarioAdminControllerTest {
 
     @Autowired
     private UsuarioAplicacionRepository usuarioAplicacionRepository;
+    @Autowired
+    private RefreshTokenRepository refreshTokenRepository;
 
     @Test
     void superAdminDebeListarTodosLosUsuarios() throws Exception {
@@ -650,6 +659,223 @@ class UsuarioAdminControllerTest {
                 .andExpect(jsonPath("$.rol").value("USER"))
                 .andExpect(jsonPath("$.activo").value(true));
     }
+    @Test
+    void superAdminDebeQuitarAplicacionYRevocarSoloSusRefreshTokens() throws Exception {
+
+        Usuario usuario = new Usuario();
+        usuario.setNombre("Usuario Quitar App");
+        usuario.setEmail("usuario-quitar-app@test.com");
+        usuario.setPassword("password-test");
+
+        Usuario guardado = usuarioRepository.save(usuario);
+
+        Aplicacion appA = aplicacionRepository.save(
+                new Aplicacion(
+                        "quitar-app-a",
+                        "Quitar App A"
+                )
+        );
+
+        Aplicacion appB = aplicacionRepository.save(
+                new Aplicacion(
+                        "quitar-app-b",
+                        "Quitar App B"
+                )
+        );
+
+        UsuarioAplicacion accesoA = new UsuarioAplicacion(
+                guardado,
+                appA,
+                RolAplicacion.USER
+        );
+
+        UsuarioAplicacion accesoB = new UsuarioAplicacion(
+                guardado,
+                appB,
+                RolAplicacion.USER
+        );
+
+        accesoA = usuarioAplicacionRepository.save(accesoA);
+        usuarioAplicacionRepository.save(accesoB);
+
+        RefreshToken tokenA1 = new RefreshToken();
+        tokenA1.setTokenHash("hash-quitar-app-a-1");
+        tokenA1.setUsuario(guardado);
+        tokenA1.setAplicacion(appA);
+        tokenA1.setCreadoEn(Instant.now());
+        tokenA1.setExpiraEn(Instant.now().plusSeconds(3600));
+        tokenA1.setRevocado(false);
+
+        RefreshToken tokenA2 = new RefreshToken();
+        tokenA2.setTokenHash("hash-quitar-app-a-2");
+        tokenA2.setUsuario(guardado);
+        tokenA2.setAplicacion(appA);
+        tokenA2.setCreadoEn(Instant.now());
+        tokenA2.setExpiraEn(Instant.now().plusSeconds(3600));
+        tokenA2.setRevocado(false);
+
+        RefreshToken tokenB = new RefreshToken();
+        tokenB.setTokenHash("hash-quitar-app-b");
+        tokenB.setUsuario(guardado);
+        tokenB.setAplicacion(appB);
+        tokenB.setCreadoEn(Instant.now());
+        tokenB.setExpiraEn(Instant.now().plusSeconds(3600));
+        tokenB.setRevocado(false);
+
+        tokenA1 = refreshTokenRepository.save(tokenA1);
+        tokenA2 = refreshTokenRepository.save(tokenA2);
+        tokenB = refreshTokenRepository.save(tokenB);
+
+        String token = jwtService.generarToken(
+                "superadmin@test.com",
+                "ADMIN",
+                "auth-admin",
+                true
+        );
+
+        mockMvc.perform(
+                        delete(
+                                "/api/usuarios/{usuarioId}/aplicaciones/{aplicacionId}",
+                                guardado.getId(),
+                                appA.getId()
+                        )
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-App-Id", "auth-admin")
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.aplicacionId").value(appA.getId()))
+                .andExpect(jsonPath("$.codigo").value("quitar-app-a"))
+                .andExpect(jsonPath("$.activo").value(false));
+
+        UsuarioAplicacion accesoActualizado =
+                usuarioAplicacionRepository
+                        .findByUsuarioIdAndAplicacionId(
+                                guardado.getId(),
+                                appA.getId()
+                        )
+                        .orElseThrow();
+
+        assertFalse(accesoActualizado.isActivo());
+
+        RefreshToken tokenA1Actualizado =
+                refreshTokenRepository.findById(tokenA1.getId())
+                        .orElseThrow();
+
+        RefreshToken tokenA2Actualizado =
+                refreshTokenRepository.findById(tokenA2.getId())
+                        .orElseThrow();
+
+        RefreshToken tokenBActualizado =
+                refreshTokenRepository.findById(tokenB.getId())
+                        .orElseThrow();
+
+        assertTrue(tokenA1Actualizado.isRevocado());
+        assertTrue(tokenA2Actualizado.isRevocado());
+
+        assertFalse(tokenBActualizado.isRevocado());
+    }
+    @Test
+    void adminNormalNoDebeQuitarUsuarioDeUnaAplicacion() throws Exception {
+
+        Usuario usuario = new Usuario();
+        usuario.setNombre("Usuario Quitar Protegido");
+        usuario.setEmail("usuario-quitar-protegido@test.com");
+        usuario.setPassword("password-test");
+
+        Usuario guardado = usuarioRepository.save(usuario);
+
+        Aplicacion aplicacion = aplicacionRepository.save(
+                new Aplicacion(
+                        "app-quitar-protegida",
+                        "App Quitar Protegida"
+                )
+        );
+
+        usuarioAplicacionRepository.save(
+                new UsuarioAplicacion(
+                        guardado,
+                        aplicacion,
+                        RolAplicacion.USER
+                )
+        );
+
+        String token = jwtService.generarToken(
+                "admin@test.com",
+                "ADMIN",
+                "todo-app",
+                false
+        );
+
+        mockMvc.perform(
+                        delete(
+                                "/api/usuarios/{usuarioId}/aplicaciones/{aplicacionId}",
+                                guardado.getId(),
+                                aplicacion.getId()
+                        )
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-App-Id", "todo-app")
+                )
+                .andExpect(status().isForbidden());
+    }
+    @Test
+    void noDebeQuitarAuthAdminAUnSuperAdmin() throws Exception {
+
+        Usuario superAdmin = new Usuario();
+        superAdmin.setNombre("Super Admin Protegido");
+        superAdmin.setEmail("superadmin-protegido@test.com");
+        superAdmin.setPassword("password-test");
+        superAdmin.setSuperAdmin(true);
+
+        Usuario guardado = usuarioRepository.save(superAdmin);
+
+        Aplicacion authAdmin = aplicacionRepository
+                .findByCodigo("auth-admin")
+                .orElseGet(() ->
+                        aplicacionRepository.save(
+                                new Aplicacion(
+                                        "auth-admin",
+                                        "Auth Admin"
+                                )
+                        )
+                );
+
+        usuarioAplicacionRepository.save(
+                new UsuarioAplicacion(
+                        guardado,
+                        authAdmin,
+                        RolAplicacion.ADMIN
+                )
+        );
+
+        String token = jwtService.generarToken(
+                "superadmin@test.com",
+                "ADMIN",
+                "auth-admin",
+                true
+        );
+
+        mockMvc.perform(
+                        delete(
+                                "/api/usuarios/{usuarioId}/aplicaciones/{aplicacionId}",
+                                guardado.getId(),
+                                authAdmin.getId()
+                        )
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-App-Id", "auth-admin")
+                )
+                .andExpect(status().isConflict());
+
+        UsuarioAplicacion acceso =
+                usuarioAplicacionRepository
+                        .findByUsuarioIdAndAplicacionId(
+                                guardado.getId(),
+                                authAdmin.getId()
+                        )
+                        .orElseThrow();
+
+        assertTrue(acceso.isActivo());
+    }
+
 
 
 }

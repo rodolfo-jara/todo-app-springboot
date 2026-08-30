@@ -124,4 +124,27 @@ public class UsuarioController {
         return ResponseEntity.status(201).body(response);
     }
 
+    @DeleteMapping("/{usuarioId}/aplicaciones/{aplicacionId}")
+    public ResponseEntity<UsuarioAplicacionResponse> quitarAplicacion(
+            @PathVariable Long usuarioId,
+            @PathVariable Long aplicacionId
+    ) {
+
+        UsuarioAplicacion acceso =
+                usuarioService.quitarAplicacion(
+                        usuarioId,
+                        aplicacionId
+                );
+
+        UsuarioAplicacionResponse response =
+                new UsuarioAplicacionResponse(
+                        acceso.getAplicacion().getId(),
+                        acceso.getAplicacion().getCodigo(),
+                        acceso.getAplicacion().getNombre(),
+                        acceso.getRol(),
+                        acceso.isActivo()
+                );
+
+        return ResponseEntity.ok(response);
+    }
 }

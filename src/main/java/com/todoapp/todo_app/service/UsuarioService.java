@@ -23,17 +23,20 @@ public class UsuarioService {
     private final PasswordEncoder passwordEncoder;
     private final AplicacionRepository aplicacionRepository;
     private final UsuarioAplicacionRepository usuarioAplicacionRepository;
+    private final RefreshTokenService refreshTokenService;
 
     public UsuarioService(
             UsuarioRepository usuarioRepository,
             PasswordEncoder passwordEncoder,
             AplicacionRepository aplicacionRepository,
-            UsuarioAplicacionRepository usuarioAplicacionRepository
+            UsuarioAplicacionRepository usuarioAplicacionRepository,
+            RefreshTokenService refreshTokenService
     ) {
         this.usuarioRepository = usuarioRepository;
         this.passwordEncoder = passwordEncoder;
         this.aplicacionRepository = aplicacionRepository;
         this.usuarioAplicacionRepository = usuarioAplicacionRepository;
+        this.refreshTokenService = refreshTokenService;
     }
     @Transactional
     public UsuarioAplicacion registrar(RegistroRequest request) {
@@ -170,5 +173,52 @@ public class UsuarioService {
                 );
 
         return usuarioAplicacionRepository.save(nuevoAcceso);
+    }
+    @Transactional
+    public UsuarioAplicacion quitarAplicacion(
+            Long usuarioId,
+            Long aplicacionId
+    ) {
+
+        Usuario usuario = buscarPorId(usuarioId);
+
+        Aplicacion aplicacion = aplicacionRepository.findById(aplicacionId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Aplicación no encontrada"
+                ));
+
+        UsuarioAplicacion acceso =
+                usuarioAplicacionRepository
+                        .findByUsuarioIdAndAplicacionId(
+                                usuarioId,
+                                aplicacionId
+                        )
+                        .orElseThrow(() -> new ResponseStatusException(
+                                HttpStatus.NOT_FOUND,
+                                "El usuario no tiene acceso a esta aplicación"
+                        ));
+
+        if (usuario.isSuperAdmin()
+                && "auth-admin".equals(aplicacion.getCodigo())) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "No se puede quitar auth-admin a un SUPER_ADMIN"
+            );
+        }
+
+        acceso.setActivo(false);
+
+        UsuarioAplicacion guardado =
+                usuarioAplicacionRepository.save(acceso);
+
+        refreshTokenService
+                .revocarTodosPorUsuarioYAplicacion(
+                        usuario,
+                        aplicacion
+                );
+
+        return guardado;
     }
 }

@@ -2,6 +2,7 @@ package com.todoapp.todo_app.repository;
 
 import com.todoapp.todo_app.entity.Aplicacion;
 import com.todoapp.todo_app.entity.RefreshToken;
+import com.todoapp.todo_app.entity.Usuario;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -29,6 +30,18 @@ public interface RefreshTokenRepository
               AND rt.revocado = false
             """)
     int revocarTodosPorAplicacion(
+            @Param("aplicacion") Aplicacion aplicacion
+    );
+    @Modifying
+    @Query("""
+        UPDATE RefreshToken rt
+        SET rt.revocado = true
+        WHERE rt.usuario = :usuario
+          AND rt.aplicacion = :aplicacion
+          AND rt.revocado = false
+        """)
+    int revocarTodosPorUsuarioYAplicacion(
+            @Param("usuario") Usuario usuario,
             @Param("aplicacion") Aplicacion aplicacion
     );
 }
