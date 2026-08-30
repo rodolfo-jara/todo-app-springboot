@@ -66,4 +66,21 @@ public class UsuarioController {
 
         return ResponseEntity.ok(usuarios);
     }
+    @GetMapping("/{id}")
+    public ResponseEntity<UsuarioAdminResponse> buscarUsuarioPorId(
+            @PathVariable Long id
+    ) {
+
+        Usuario usuario = usuarioService.buscarPorId(id);
+
+        UsuarioAdminResponse response = new UsuarioAdminResponse(
+                usuario.getId(),
+                usuario.getNombre(),
+                usuario.getEmail(),
+                usuario.isSuperAdmin()
+        );
+
+        return ResponseEntity.ok(response);
+    }
+
 }

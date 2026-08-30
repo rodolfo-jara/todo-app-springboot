@@ -173,4 +173,5 @@ public class AuthController {
 
         return ResponseEntity.ok(new ValidateResponse(true, email, rol));
     }
+
 }

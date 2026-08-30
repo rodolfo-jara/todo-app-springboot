@@ -55,7 +55,7 @@ public class SecurityConfig {
                         .hasRole("SUPER_ADMIN")
 
                         // Esto todavía lo corregiremos después
-                        .requestMatchers(HttpMethod.GET, "/api/usuarios")
+                        .requestMatchers(HttpMethod.GET, "/api/usuarios/**")
                         .hasRole("SUPER_ADMIN")
 
                         .requestMatchers("/api/perfil/admin")
