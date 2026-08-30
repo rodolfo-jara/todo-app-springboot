@@ -24,9 +24,7 @@ public class UsuarioController {
     }
 
 
-    // Público: solo puede crear un usuario nuevo con rol USER.
-    // RegistroRequest no tiene campos "id" ni "rol", así que el cliente
-    // no puede sobrescribir otras cuentas ni auto-asignarse ADMIN.
+
 
     @PostMapping
     public ResponseEntity<PerfilResponse> registrar(
@@ -134,6 +132,31 @@ public class UsuarioController {
                 usuarioService.quitarAplicacion(
                         usuarioId,
                         aplicacionId
+                );
+
+        UsuarioAplicacionResponse response =
+                new UsuarioAplicacionResponse(
+                        acceso.getAplicacion().getId(),
+                        acceso.getAplicacion().getCodigo(),
+                        acceso.getAplicacion().getNombre(),
+                        acceso.getRol(),
+                        acceso.isActivo()
+                );
+
+        return ResponseEntity.ok(response);
+    }
+    @PatchMapping("/{usuarioId}/aplicaciones/{aplicacionId}/rol")
+    public ResponseEntity<UsuarioAplicacionResponse> cambiarRol(
+            @PathVariable Long usuarioId,
+            @PathVariable Long aplicacionId,
+            @Valid @RequestBody CambiarRolRequest request
+    ) {
+
+        UsuarioAplicacion acceso =
+                usuarioService.cambiarRol(
+                        usuarioId,
+                        aplicacionId,
+                        request.getRol()
                 );
 
         UsuarioAplicacionResponse response =

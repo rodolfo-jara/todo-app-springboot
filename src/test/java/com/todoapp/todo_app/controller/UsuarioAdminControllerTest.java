@@ -16,9 +16,8 @@ import org.springframework.http.MediaType;
 
 import java.time.Instant;
 import com.todoapp.todo_app.entity.RefreshToken;
-import com.todoapp.todo_app.repository.RefreshTokenRepository;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 
-import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -876,6 +875,377 @@ class UsuarioAdminControllerTest {
         assertTrue(acceso.isActivo());
     }
 
+    @Test
+    void superAdminDebeCambiarRolUserAAdmin() throws Exception {
 
+        Usuario usuario = new Usuario();
+        usuario.setNombre("Usuario Cambio Rol");
+        usuario.setEmail("usuario-cambio-rol@test.com");
+        usuario.setPassword("password-test");
+        Usuario guardado = usuarioRepository.save(usuario);
+
+        Aplicacion aplicacion = aplicacionRepository.save(
+                new Aplicacion(
+                        "app-cambio-rol-test",
+                        "App Cambio Rol Test"
+                )
+        );
+
+        UsuarioAplicacion acceso =
+                usuarioAplicacionRepository.save(
+                        new UsuarioAplicacion(
+                                guardado,
+                                aplicacion,
+                                RolAplicacion.USER
+                        )
+                );
+
+        String token = jwtService.generarToken(
+                "superadmin@test.com",
+                "ADMIN",
+                "auth-admin",
+                true
+        );
+
+        String json = """
+            {
+                "rol": "ADMIN"
+            }
+            """;
+
+        mockMvc.perform(
+                        patch(
+                                "/api/usuarios/{usuarioId}/aplicaciones/{aplicacionId}/rol",
+                                guardado.getId(),
+                                aplicacion.getId()
+                        )
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-App-Id", "auth-admin")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rol").value("ADMIN"))
+                .andExpect(jsonPath("$.activo").value(true));
+
+        UsuarioAplicacion actualizado =
+                usuarioAplicacionRepository.findById(acceso.getId())
+                        .orElseThrow();
+
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "ADMIN",
+                actualizado.getRol()
+        );
+    }
+    @Test
+    void superAdminDebeCambiarRolAdminAUser() throws Exception {
+
+        Usuario usuario = new Usuario();
+        usuario.setNombre("Usuario Admin A User");
+        usuario.setEmail("usuario-admin-user@test.com");
+        usuario.setPassword("password-test");
+        Usuario guardado = usuarioRepository.save(usuario);
+
+        Aplicacion aplicacion = aplicacionRepository.save(
+                new Aplicacion(
+                        "app-admin-user-test",
+                        "App Admin User Test"
+                )
+        );
+
+        UsuarioAplicacion acceso =
+                usuarioAplicacionRepository.save(
+                        new UsuarioAplicacion(
+                                guardado,
+                                aplicacion,
+                                RolAplicacion.ADMIN
+                        )
+                );
+
+        String token = jwtService.generarToken(
+                "superadmin@test.com",
+                "ADMIN",
+                "auth-admin",
+                true
+        );
+
+        String json = """
+            {
+                "rol": "USER"
+            }
+            """;
+
+        mockMvc.perform(
+                        patch(
+                                "/api/usuarios/{usuarioId}/aplicaciones/{aplicacionId}/rol",
+                                guardado.getId(),
+                                aplicacion.getId()
+                        )
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-App-Id", "auth-admin")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rol").value("USER"));
+
+        UsuarioAplicacion actualizado =
+                usuarioAplicacionRepository.findById(acceso.getId())
+                        .orElseThrow();
+
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "USER",
+                actualizado.getRol()
+        );
+    }
+    @Test
+    void cambiarRolDeAccesoInactivoDebeRetornar409() throws Exception {
+
+        Usuario usuario = new Usuario();
+        usuario.setNombre("Usuario Rol Inactivo");
+        usuario.setEmail("usuario-rol-inactivo@test.com");
+        usuario.setPassword("password-test");
+        Usuario guardado = usuarioRepository.save(usuario);
+
+        Aplicacion aplicacion = aplicacionRepository.save(
+                new Aplicacion(
+                        "app-rol-inactivo-test",
+                        "App Rol Inactivo Test"
+                )
+        );
+
+        UsuarioAplicacion acceso = new UsuarioAplicacion(
+                guardado,
+                aplicacion,
+                RolAplicacion.USER
+        );
+
+        acceso.setActivo(false);
+        usuarioAplicacionRepository.save(acceso);
+
+        String token = jwtService.generarToken(
+                "superadmin@test.com",
+                "ADMIN",
+                "auth-admin",
+                true
+        );
+
+        String json = """
+            {
+                "rol": "ADMIN"
+            }
+            """;
+
+        mockMvc.perform(
+                        patch(
+                                "/api/usuarios/{usuarioId}/aplicaciones/{aplicacionId}/rol",
+                                guardado.getId(),
+                                aplicacion.getId()
+                        )
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-App-Id", "auth-admin")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isConflict());
+    }
+    @Test
+    void cambiarRolSinAccesoDebeRetornar404() throws Exception {
+
+        Usuario usuario = new Usuario();
+        usuario.setNombre("Usuario Sin Acceso Rol");
+        usuario.setEmail("usuario-sin-acceso-rol@test.com");
+        usuario.setPassword("password-test");
+        Usuario guardado = usuarioRepository.save(usuario);
+
+        Aplicacion aplicacion = aplicacionRepository.save(
+                new Aplicacion(
+                        "app-sin-acceso-rol-test",
+                        "App Sin Acceso Rol Test"
+                )
+        );
+
+        String token = jwtService.generarToken(
+                "superadmin@test.com",
+                "ADMIN",
+                "auth-admin",
+                true
+        );
+
+        String json = """
+            {
+                "rol": "ADMIN"
+            }
+            """;
+
+        mockMvc.perform(
+                        patch(
+                                "/api/usuarios/{usuarioId}/aplicaciones/{aplicacionId}/rol",
+                                guardado.getId(),
+                                aplicacion.getId()
+                        )
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-App-Id", "auth-admin")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isNotFound());
+    }
+    @Test
+    void adminNormalNoDebeCambiarRolGlobalmente() throws Exception {
+
+        Usuario usuario = new Usuario();
+        usuario.setNombre("Usuario Rol Protegido");
+        usuario.setEmail("usuario-rol-protegido@test.com");
+        usuario.setPassword("password-test");
+        Usuario guardado = usuarioRepository.save(usuario);
+
+        Aplicacion aplicacion = aplicacionRepository.save(
+                new Aplicacion(
+                        "app-rol-protegida-test",
+                        "App Rol Protegida Test"
+                )
+        );
+
+        usuarioAplicacionRepository.save(
+                new UsuarioAplicacion(
+                        guardado,
+                        aplicacion,
+                        RolAplicacion.USER
+                )
+        );
+
+        String token = jwtService.generarToken(
+                "admin@test.com",
+                "ADMIN",
+                "todo-app",
+                false
+        );
+
+        String json = """
+            {
+                "rol": "ADMIN"
+            }
+            """;
+
+        mockMvc.perform(
+                        patch(
+                                "/api/usuarios/{usuarioId}/aplicaciones/{aplicacionId}/rol",
+                                guardado.getId(),
+                                aplicacion.getId()
+                        )
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-App-Id", "todo-app")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isForbidden());
+    }
+    @Test
+    void noDebeCambiarAuthAdminDeSuperAdminAUser() throws Exception {
+
+        Usuario superAdmin = new Usuario();
+        superAdmin.setNombre("Super Admin Rol Protegido");
+        superAdmin.setEmail("superadmin-rol-protegido@test.com");
+        superAdmin.setPassword("password-test");
+        superAdmin.setSuperAdmin(true);
+
+        Usuario guardado = usuarioRepository.save(superAdmin);
+
+        Aplicacion authAdmin = aplicacionRepository
+                .findByCodigo("auth-admin")
+                .orElseGet(() ->
+                        aplicacionRepository.save(
+                                new Aplicacion(
+                                        "auth-admin",
+                                        "Auth Admin"
+                                )
+                        )
+                );
+
+        usuarioAplicacionRepository.save(
+                new UsuarioAplicacion(
+                        guardado,
+                        authAdmin,
+                        RolAplicacion.ADMIN
+                )
+        );
+
+        String token = jwtService.generarToken(
+                "superadmin@test.com",
+                "ADMIN",
+                "auth-admin",
+                true
+        );
+
+        String json = """
+            {
+                "rol": "USER"
+            }
+            """;
+
+        mockMvc.perform(
+                        patch(
+                                "/api/usuarios/{usuarioId}/aplicaciones/{aplicacionId}/rol",
+                                guardado.getId(),
+                                authAdmin.getId()
+                        )
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-App-Id", "auth-admin")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isConflict());
+    }
+    @Test
+    void cambiarRolASuperAdminDebeRetornar400() throws Exception {
+
+        Usuario usuario = new Usuario();
+        usuario.setNombre("Usuario Intento SuperAdmin");
+        usuario.setEmail("usuario-intento-superadmin@test.com");
+        usuario.setPassword("password-test");
+        Usuario guardado = usuarioRepository.save(usuario);
+
+        Aplicacion aplicacion = aplicacionRepository.save(
+                new Aplicacion(
+                        "app-intento-superadmin-test",
+                        "App Intento SuperAdmin Test"
+                )
+        );
+
+        usuarioAplicacionRepository.save(
+                new UsuarioAplicacion(
+                        guardado,
+                        aplicacion,
+                        RolAplicacion.USER
+                )
+        );
+
+        String token = jwtService.generarToken(
+                "superadmin@test.com",
+                "ADMIN",
+                "auth-admin",
+                true
+        );
+
+        String json = """
+            {
+                "rol": "SUPER_ADMIN"
+            }
+            """;
+
+        mockMvc.perform(
+                        patch(
+                                "/api/usuarios/{usuarioId}/aplicaciones/{aplicacionId}/rol",
+                                guardado.getId(),
+                                aplicacion.getId()
+                        )
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-App-Id", "auth-admin")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isBadRequest());
+    }
 
 }

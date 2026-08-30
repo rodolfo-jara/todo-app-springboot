@@ -221,4 +221,52 @@ public class UsuarioService {
 
         return guardado;
     }
+
+    @Transactional
+    public UsuarioAplicacion cambiarRol(
+            Long usuarioId,
+            Long aplicacionId,
+            RolAplicacion nuevoRol
+    ) {
+
+        Usuario usuario = buscarPorId(usuarioId);
+
+        Aplicacion aplicacion = aplicacionRepository.findById(aplicacionId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Aplicación no encontrada"
+                ));
+
+        UsuarioAplicacion acceso =
+                usuarioAplicacionRepository
+                        .findByUsuarioIdAndAplicacionId(
+                                usuarioId,
+                                aplicacionId
+                        )
+                        .orElseThrow(() -> new ResponseStatusException(
+                                HttpStatus.NOT_FOUND,
+                                "El usuario no tiene acceso a esta aplicación"
+                        ));
+
+        if (!acceso.isActivo()) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "No se puede cambiar el rol de un acceso inactivo"
+            );
+        }
+
+        if (usuario.isSuperAdmin()
+                && "auth-admin".equals(aplicacion.getCodigo())
+                && nuevoRol == RolAplicacion.USER) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "No se puede quitar el rol ADMIN de auth-admin a un SUPER_ADMIN"
+            );
+        }
+
+        acceso.setRol(nuevoRol.name());
+
+        return usuarioAplicacionRepository.save(acceso);
+    }
 }

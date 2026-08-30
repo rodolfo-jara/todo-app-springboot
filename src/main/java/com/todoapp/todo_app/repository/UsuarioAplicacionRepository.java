@@ -21,4 +21,5 @@ public interface UsuarioAplicacionRepository
             Long usuarioId,
             Long aplicacionId
     );
+
 }
