@@ -1,8 +1,6 @@
 package com.todoapp.todo_app.controller;
 
-import com.todoapp.todo_app.dto.PerfilResponse;
-import com.todoapp.todo_app.dto.RegistroRequest;
-import com.todoapp.todo_app.dto.UsuarioAdminResponse;
+import com.todoapp.todo_app.dto.*;
 import com.todoapp.todo_app.entity.Usuario;
 import com.todoapp.todo_app.entity.UsuarioAplicacion;
 import com.todoapp.todo_app.service.UsuarioService;
@@ -81,6 +79,49 @@ public class UsuarioController {
         );
 
         return ResponseEntity.ok(response);
+    }
+    @GetMapping("/{id}/aplicaciones")
+    public ResponseEntity<List<UsuarioAplicacionResponse>>
+    listarAplicacionesDeUsuario(
+            @PathVariable Long id
+    ) {
+
+        List<UsuarioAplicacionResponse> aplicaciones =
+                usuarioService.listarAplicacionesDeUsuario(id)
+                        .stream()
+                        .map(acceso -> new UsuarioAplicacionResponse(
+                                acceso.getAplicacion().getId(),
+                                acceso.getAplicacion().getCodigo(),
+                                acceso.getAplicacion().getNombre(),
+                                acceso.getRol(),
+                                acceso.isActivo()
+                        ))
+                        .toList();
+
+        return ResponseEntity.ok(aplicaciones);
+    }
+    @PostMapping("/{id}/aplicaciones")
+    public ResponseEntity<UsuarioAplicacionResponse> asignarAplicacion(
+            @PathVariable Long id,
+            @Valid @RequestBody AsignarAplicacionRequest request
+    ) {
+
+        UsuarioAplicacion acceso =
+                usuarioService.asignarAplicacion(
+                        id,
+                        request.getAplicacionId()
+                );
+
+        UsuarioAplicacionResponse response =
+                new UsuarioAplicacionResponse(
+                        acceso.getAplicacion().getId(),
+                        acceso.getAplicacion().getCodigo(),
+                        acceso.getAplicacion().getNombre(),
+                        acceso.getRol(),
+                        acceso.isActivo()
+                );
+
+        return ResponseEntity.status(201).body(response);
     }
 
 }

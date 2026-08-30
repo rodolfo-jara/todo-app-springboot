@@ -109,4 +109,66 @@ public class UsuarioService {
                         "Usuario no encontrado"
                 ));
     }
+
+    public List<UsuarioAplicacion> listarAplicacionesDeUsuario(Long usuarioId) {
+
+        buscarPorId(usuarioId);
+
+        return usuarioAplicacionRepository
+                .findByUsuarioId(usuarioId);
+    }
+    @Transactional
+    public UsuarioAplicacion asignarAplicacion(
+            Long usuarioId,
+            Long aplicacionId
+    ) {
+
+        Usuario usuario = buscarPorId(usuarioId);
+
+        Aplicacion aplicacion = aplicacionRepository.findById(aplicacionId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Aplicación no encontrada"
+                ));
+
+        if (!aplicacion.isActivo()) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "No se puede asignar una aplicación inactiva"
+            );
+        }
+
+        var accesoExistente =
+                usuarioAplicacionRepository
+                        .findByUsuarioIdAndAplicacionId(
+                                usuarioId,
+                                aplicacionId
+                        );
+
+        if (accesoExistente.isPresent()) {
+
+            UsuarioAplicacion acceso = accesoExistente.get();
+
+            if (acceso.isActivo()) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "El usuario ya tiene acceso a esta aplicación"
+                );
+            }
+
+            acceso.setActivo(true);
+            acceso.setRol(RolAplicacion.USER.name());
+
+            return usuarioAplicacionRepository.save(acceso);
+        }
+
+        UsuarioAplicacion nuevoAcceso =
+                new UsuarioAplicacion(
+                        usuario,
+                        aplicacion,
+                        RolAplicacion.USER
+                );
+
+        return usuarioAplicacionRepository.save(nuevoAcceso);
+    }
 }
