@@ -435,4 +435,71 @@ public class UsuarioService {
 
         return usuarioAplicacionRepository.save(nuevoAcceso);
     }
+    @Transactional
+    public UsuarioAplicacion quitarUsuarioDePropiaAplicacion(
+            String emailAdmin,
+            String appCodigo,
+            Long usuarioId
+    ) {
+
+        String codigoNormalizado = appCodigo
+                .trim()
+                .toLowerCase(Locale.ROOT);
+
+        UsuarioAplicacion accesoAdmin =
+                usuarioAplicacionRepository
+                        .findByUsuarioEmailAndAplicacionCodigo(
+                                emailAdmin,
+                                codigoNormalizado
+                        )
+                        .orElseThrow(() -> new ResponseStatusException(
+                                HttpStatus.FORBIDDEN,
+                                "No tienes permisos para administrar esta aplicación"
+                        ));
+
+        if (!accesoAdmin.isActivo()
+                || !accesoAdmin.getAplicacion().isActivo()
+                || !RolAplicacion.ADMIN.name().equals(accesoAdmin.getRol())) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "No tienes permisos para administrar esta aplicación"
+            );
+        }
+
+        Usuario usuario = buscarPorId(usuarioId);
+
+        if (usuario.isSuperAdmin()) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Un ADMIN de aplicación no puede administrar un SUPER_ADMIN"
+            );
+        }
+
+        Aplicacion aplicacion = accesoAdmin.getAplicacion();
+
+        UsuarioAplicacion accesoUsuario =
+                usuarioAplicacionRepository
+                        .findByUsuarioIdAndAplicacionId(
+                                usuarioId,
+                                aplicacion.getId()
+                        )
+                        .orElseThrow(() -> new ResponseStatusException(
+                                HttpStatus.NOT_FOUND,
+                                "El usuario no pertenece a esta aplicación"
+                        ));
+
+        accesoUsuario.setActivo(false);
+
+        UsuarioAplicacion guardado =
+                usuarioAplicacionRepository.save(accesoUsuario);
+
+        refreshTokenService.revocarTodosPorUsuarioYAplicacion(
+                usuario,
+                aplicacion
+        );
+
+        return guardado;
+    }
+
 }

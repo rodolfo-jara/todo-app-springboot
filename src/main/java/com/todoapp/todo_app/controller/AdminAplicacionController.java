@@ -62,4 +62,29 @@ public class AdminAplicacionController {
 
         return ResponseEntity.status(201).body(response);
     }
+    @DeleteMapping("/usuarios/{usuarioId}")
+    public ResponseEntity<UsuarioAppAdminResponse> quitarUsuario(
+            Authentication authentication,
+            @RequestHeader("X-App-Id") String appCodigo,
+            @PathVariable Long usuarioId
+    ) {
+
+        UsuarioAplicacion acceso =
+                usuarioService.quitarUsuarioDePropiaAplicacion(
+                        authentication.getName(),
+                        appCodigo,
+                        usuarioId
+                );
+
+        UsuarioAppAdminResponse response =
+                new UsuarioAppAdminResponse(
+                        acceso.getUsuario().getId(),
+                        acceso.getUsuario().getNombre(),
+                        acceso.getUsuario().getEmail(),
+                        acceso.getRol(),
+                        acceso.isActivo()
+                );
+
+        return ResponseEntity.ok(response);
+    }
 }
