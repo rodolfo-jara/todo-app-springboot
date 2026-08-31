@@ -1,6 +1,7 @@
 package com.todoapp.todo_app.service;
 
 import com.todoapp.todo_app.dto.RegistroRequest;
+import com.todoapp.todo_app.dto.UsuarioAppAdminResponse;
 import com.todoapp.todo_app.entity.Aplicacion;
 import com.todoapp.todo_app.entity.RolAplicacion;
 import com.todoapp.todo_app.entity.Usuario;
@@ -16,6 +17,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Locale;
+
 import com.todoapp.todo_app.dto.CrearUsuarioAdminRequest;
 @Service
 public class UsuarioService {
@@ -302,5 +305,48 @@ public class UsuarioService {
                     "El email ya está registrado"
             );
         }
+    }
+    @Transactional(readOnly = true)
+    public List<UsuarioAppAdminResponse> listarUsuariosDeAplicacion(
+            String emailAdmin,
+            String appCodigo
+    ) {
+
+        String codigoNormalizado = appCodigo
+                .trim()
+                .toLowerCase(Locale.ROOT);
+
+        UsuarioAplicacion accesoAdmin =
+                usuarioAplicacionRepository
+                        .findByUsuarioEmailAndAplicacionCodigo(
+                                emailAdmin,
+                                codigoNormalizado
+                        )
+                        .orElseThrow(() -> new ResponseStatusException(
+                                HttpStatus.FORBIDDEN,
+                                "No tienes permisos para administrar esta aplicación"
+                        ));
+
+        if (!accesoAdmin.isActivo()
+                || !accesoAdmin.getAplicacion().isActivo()
+                || !RolAplicacion.ADMIN.name().equals(accesoAdmin.getRol())) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "No tienes permisos para administrar esta aplicación"
+            );
+        }
+
+        return usuarioAplicacionRepository
+                .findByAplicacionCodigo(codigoNormalizado)
+                .stream()
+                .map(acceso -> new UsuarioAppAdminResponse(
+                        acceso.getUsuario().getId(),
+                        acceso.getUsuario().getNombre(),
+                        acceso.getUsuario().getEmail(),
+                        acceso.getRol(),
+                        acceso.isActivo()
+                ))
+                .toList();
     }
 }

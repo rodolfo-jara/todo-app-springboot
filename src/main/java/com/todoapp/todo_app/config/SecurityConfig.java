@@ -49,7 +49,6 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**"
                         ).permitAll()
-                                // Administración global de usuarios: solo SUPER_ADMIN.
                                 // CRUD global de aplicaciones: solo SUPER_ADMIN
                                 .requestMatchers("/api/aplicaciones/**")
                                 .hasRole("SUPER_ADMIN")
@@ -58,10 +57,14 @@ public class SecurityConfig {
                                 .requestMatchers("/api/usuarios/**")
                                 .hasRole("SUPER_ADMIN")
 
+                                // Administración dentro de una aplicación: solo ADMIN
+                                .requestMatchers("/api/admin/**")
+                                .hasRole("ADMIN")
+
                                 .requestMatchers("/api/perfil/admin")
                                 .hasRole("ADMIN")
 
-                        .anyRequest().authenticated()
+                                .anyRequest().authenticated()
                 )
                 .exceptionHandling(exception -> exception
                         .authenticationEntryPoint((request, response, authException) ->

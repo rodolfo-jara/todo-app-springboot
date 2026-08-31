@@ -21,5 +21,8 @@ public interface UsuarioAplicacionRepository
             Long usuarioId,
             Long aplicacionId
     );
+    List<UsuarioAplicacion> findByAplicacionCodigo(
+            String codigo
+    );
 
 }
