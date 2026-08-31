@@ -1469,4 +1469,117 @@ class AdminAplicacionControllerTest {
 
         assertEquals("ADMIN", actualizado.getRol());
     }
+    @Test
+    void adminNoPuedeCrearAplicaciones() throws Exception {
+
+        String token = jwtService.generarToken(
+                "admin-no-crea-app@test.com",
+                "ADMIN",
+                "app-admin-test",
+                false
+        );
+
+        String json = """
+            {
+                "codigo": "app-prohibida-admin",
+                "nombre": "App Prohibida Admin"
+            }
+            """;
+
+        mockMvc.perform(
+                        post("/api/aplicaciones")
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + token
+                                )
+                                .header(
+                                        "X-App-Id",
+                                        "app-admin-test"
+                                )
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isForbidden());
+    }
+    @Test
+    void adminNoPuedeEliminarAplicaciones() throws Exception {
+
+        Aplicacion aplicacion = aplicacionRepository.save(
+                new Aplicacion(
+                        "app-no-eliminar-admin",
+                        "App No Eliminar Admin"
+                )
+        );
+
+        String token = jwtService.generarToken(
+                "admin-no-elimina-app@test.com",
+                "ADMIN",
+                "app-admin-test",
+                false
+        );
+
+        mockMvc.perform(
+                        delete(
+                                "/api/aplicaciones/{id}",
+                                aplicacion.getId()
+                        )
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + token
+                                )
+                                .header(
+                                        "X-App-Id",
+                                        "app-admin-test"
+                                )
+                )
+                .andExpect(status().isForbidden());
+    }
+    @Test
+    void adminNoPuedeConvertirseEnSuperAdmin() throws Exception {
+
+        Aplicacion aplicacion = aplicacionRepository.save(
+                new Aplicacion(
+                        "admin-no-superadmin",
+                        "Admin No SuperAdmin"
+                )
+        );
+
+        Usuario admin = crearUsuario(
+                "Admin Sin Escalamiento",
+                "admin-sin-escalamiento@test.com"
+        );
+
+        usuarioAplicacionRepository.save(
+                new UsuarioAplicacion(
+                        admin,
+                        aplicacion,
+                        RolAplicacion.ADMIN
+                )
+        );
+
+        String token = jwtService.generarToken(
+                admin.getEmail(),
+                "ADMIN",
+                "admin-no-superadmin",
+                false
+        );
+
+        String json = """
+            {
+                "rol": "SUPER_ADMIN"
+            }
+            """;
+
+        mockMvc.perform(
+                        patch(
+                                "/api/admin/usuarios/{usuarioId}/rol",
+                                admin.getId()
+                        )
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-App-Id", "admin-no-superadmin")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isBadRequest());
+    }
 }
