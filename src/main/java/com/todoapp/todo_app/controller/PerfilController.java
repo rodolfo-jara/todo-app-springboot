@@ -70,8 +70,4 @@ public class PerfilController {
         return ResponseEntity.ok(perfilResponse);
     }
 
-    @GetMapping("/admin")
-    public ResponseEntity<String> admin() {
-        return ResponseEntity.ok("Bienvenido administrador");
-    }
 }

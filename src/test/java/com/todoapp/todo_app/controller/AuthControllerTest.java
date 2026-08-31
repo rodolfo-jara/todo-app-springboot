@@ -147,75 +147,6 @@ class AuthControllerTest {
                 .andExpect(status().isUnauthorized());
     }
     @Test
-    void usuarioConRolUserNoDebeAccederAEndpointAdmin() throws Exception {
-
-        String loginJson = """
-            {
-                "email": "test@test.com",
-                "password": "Password123",
-                "app": "todo-app"
-            }
-            """;
-
-        String respuestaLogin = mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(loginJson))
-                .andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
-
-        String token = new tools.jackson.databind.ObjectMapper()
-                .readTree(respuestaLogin)
-                .get("token")
-                .asText();
-
-        mockMvc.perform(get("/api/perfil/admin")
-                        .header("Authorization", "Bearer " + token)
-                        .header("X-App-Id", "todo-app"))
-                .andExpect(status().isForbidden());
-    }
-    @Test
-    void usuarioConRolAdminDebeAccederAEndpointAdmin() throws Exception {
-
-        UsuarioAplicacion acceso = usuarioAplicacionRepository
-                .findByUsuarioEmailAndAplicacionCodigo(
-                        "test@test.com",
-                        "todo-app"
-                )
-                .orElseThrow();
-
-        acceso.setRol("ADMIN");
-        usuarioAplicacionRepository.save(acceso);
-
-
-        String loginJson = """
-            {
-                "email": "test@test.com",
-                "password": "Password123",
-                "app": "todo-app"
-            }
-            """;
-
-        String respuestaLogin = mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(loginJson))
-                .andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
-
-        String token = new tools.jackson.databind.ObjectMapper()
-                .readTree(respuestaLogin)
-                .get("token")
-                .asText();
-
-        mockMvc.perform(get("/api/perfil/admin")
-                        .header("Authorization", "Bearer " + token)
-                        .header("X-App-Id", "todo-app"))
-                .andExpect(status().isOk());
-    }
-    @Test
     void registroDebeNormalizarEmail() throws Exception {
 
         // Limpiamos primero tablas hijas y luego tablas padre
@@ -514,7 +445,7 @@ class AuthControllerTest {
                 .signWith(claveFalsa)
                 .compact();
 
-        mockMvc.perform(get("/api/perfil/admin")
+        mockMvc.perform(get("/api/perfil")
                         .header("Authorization", "Bearer " + tokenFalso)
                         .header("X-App-Id", "todo-app"))
                 .andExpect(status().isUnauthorized());
@@ -563,7 +494,7 @@ class AuthControllerTest {
                 "USER",
                 jwtService.extraerRol(token)
         );
-        mockMvc.perform(get("/api/perfil/admin")
+        mockMvc.perform(get("/api/admin/usuarios")
                         .header("Authorization", "Bearer " + token)
                         .header("X-App-Id", "todo-app"))
                 .andExpect(status().isForbidden());

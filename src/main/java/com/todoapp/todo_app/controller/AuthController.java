@@ -156,22 +156,65 @@ public class AuthController {
 
     @GetMapping("/validate")
     public ResponseEntity<ValidateResponse> validate(
-            @RequestHeader(value = "Authorization", required = false) String authorizationHeader
+            @RequestHeader(value = "Authorization", required = false)
+            String authorizationHeader
     ) {
-        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
-            return ResponseEntity.status(401).body(new ValidateResponse(false, null, null));
+
+        if (authorizationHeader == null
+                || !authorizationHeader.startsWith("Bearer ")) {
+
+            return ResponseEntity.status(401)
+                    .body(new ValidateResponse(false, null, null));
         }
 
         String token = authorizationHeader.substring(7);
 
         if (!jwtService.tokenValido(token)) {
-            return ResponseEntity.status(401).body(new ValidateResponse(false, null, null));
+            return ResponseEntity.status(401)
+                    .body(new ValidateResponse(false, null, null));
         }
 
         String email = jwtService.extraerEmail(token);
-        String rol = jwtService.extraerRol(token);
+        String rolToken = jwtService.extraerRol(token);
+        String appToken = jwtService.extraerApp(token);
+        boolean superAdminToken =
+                jwtService.extraerSuperAdmin(token);
 
-        return ResponseEntity.ok(new ValidateResponse(true, email, rol));
+        UsuarioAplicacion acceso =
+                usuarioAplicacionRepository
+                        .findByUsuarioEmailAndAplicacionCodigo(
+                                email,
+                                appToken
+                        )
+                        .orElse(null);
+
+        if (acceso == null
+                || !acceso.isActivo()
+                || !acceso.getAplicacion().isActivo()) {
+
+            return ResponseEntity.status(401)
+                    .body(new ValidateResponse(false, null, null));
+        }
+
+        if (!acceso.getRol().equals(rolToken)) {
+            return ResponseEntity.status(401)
+                    .body(new ValidateResponse(false, null, null));
+        }
+
+        if (acceso.getUsuario().isSuperAdmin()
+                != superAdminToken) {
+
+            return ResponseEntity.status(401)
+                    .body(new ValidateResponse(false, null, null));
+        }
+
+        return ResponseEntity.ok(
+                new ValidateResponse(
+                        true,
+                        email,
+                        acceso.getRol()
+                )
+        );
     }
 
 }
