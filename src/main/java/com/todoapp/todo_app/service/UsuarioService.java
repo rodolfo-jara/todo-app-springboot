@@ -501,5 +501,92 @@ public class UsuarioService {
 
         return guardado;
     }
+    @Transactional
+    public UsuarioAplicacion cambiarRolEnPropiaAplicacion(
+            String emailAdmin,
+            String appCodigo,
+            Long usuarioId,
+            RolAplicacion nuevoRol
+    ) {
+
+        String codigoNormalizado = appCodigo
+                .trim()
+                .toLowerCase(Locale.ROOT);
+
+        UsuarioAplicacion accesoAdmin =
+                usuarioAplicacionRepository
+                        .findByUsuarioEmailAndAplicacionCodigo(
+                                emailAdmin,
+                                codigoNormalizado
+                        )
+                        .orElseThrow(() -> new ResponseStatusException(
+                                HttpStatus.FORBIDDEN,
+                                "No tienes permisos para administrar esta aplicación"
+                        ));
+
+        if (!accesoAdmin.isActivo()
+                || !accesoAdmin.getAplicacion().isActivo()
+                || !RolAplicacion.ADMIN.name().equals(accesoAdmin.getRol())) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "No tienes permisos para administrar esta aplicación"
+            );
+        }
+
+        Usuario usuario = buscarPorId(usuarioId);
+
+        if (usuario.isSuperAdmin()) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Un ADMIN de aplicación no puede administrar un SUPER_ADMIN"
+            );
+        }
+
+        Aplicacion aplicacion = accesoAdmin.getAplicacion();
+
+        UsuarioAplicacion accesoUsuario =
+                usuarioAplicacionRepository
+                        .findByUsuarioIdAndAplicacionId(
+                                usuarioId,
+                                aplicacion.getId()
+                        )
+                        .orElseThrow(() -> new ResponseStatusException(
+                                HttpStatus.NOT_FOUND,
+                                "El usuario no pertenece a esta aplicación"
+                        ));
+
+        if (!accesoUsuario.isActivo()) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "No se puede cambiar el rol de un acceso inactivo"
+            );
+        }
+
+        boolean seEstaDegradandoAdmin =
+                RolAplicacion.ADMIN.name().equals(accesoUsuario.getRol())
+                        && nuevoRol == RolAplicacion.USER;
+
+        if (seEstaDegradandoAdmin) {
+
+            long cantidadAdminsActivos =
+                    usuarioAplicacionRepository
+                            .countByAplicacionIdAndRolAndActivoTrue(
+                                    aplicacion.getId(),
+                                    RolAplicacion.ADMIN
+                            );
+
+            if (cantidadAdminsActivos <= 1) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "No se puede degradar al último ADMIN activo de la aplicación"
+                );
+            }
+        }
+
+        accesoUsuario.setRol(nuevoRol.name());
+
+        return usuarioAplicacionRepository.save(accesoUsuario);
+    }
 
 }

@@ -16,7 +16,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import com.todoapp.todo_app.entity.RefreshToken;
-
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -29,7 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import org.springframework.http.MediaType;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -1013,5 +1014,459 @@ class AdminAplicacionControllerTest {
                                 .header("X-App-Id", "app-b")
                 )
                 .andExpect(status().isUnauthorized());
+    }
+    @Test
+    void adminDebeCambiarUserAAdminEnSuAplicacion() throws Exception {
+
+        Aplicacion aplicacion = aplicacionRepository.save(
+                new Aplicacion(
+                        "admin-cambiar-user-admin",
+                        "Admin Cambiar User Admin"
+                )
+        );
+
+        Usuario admin = crearUsuario(
+                "Admin Cambio Rol",
+                "admin-cambio-user-admin@test.com"
+        );
+
+        Usuario usuario = crearUsuario(
+                "Usuario Promovido",
+                "usuario-promovido@test.com"
+        );
+
+        usuarioAplicacionRepository.save(
+                new UsuarioAplicacion(
+                        admin,
+                        aplicacion,
+                        RolAplicacion.ADMIN
+                )
+        );
+
+        UsuarioAplicacion accesoUsuario =
+                usuarioAplicacionRepository.save(
+                        new UsuarioAplicacion(
+                                usuario,
+                                aplicacion,
+                                RolAplicacion.USER
+                        )
+                );
+
+        String token = jwtService.generarToken(
+                admin.getEmail(),
+                "ADMIN",
+                "admin-cambiar-user-admin",
+                false
+        );
+
+        String json = """
+            {
+                "rol": "ADMIN"
+            }
+            """;
+
+        mockMvc.perform(
+                        patch(
+                                "/api/admin/usuarios/{usuarioId}/rol",
+                                usuario.getId()
+                        )
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-App-Id", "admin-cambiar-user-admin")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.usuarioId").value(usuario.getId()))
+                .andExpect(jsonPath("$.rol").value("ADMIN"))
+                .andExpect(jsonPath("$.activo").value(true));
+
+        UsuarioAplicacion actualizado =
+                usuarioAplicacionRepository
+                        .findById(accesoUsuario.getId())
+                        .orElseThrow();
+
+        assertEquals("ADMIN", actualizado.getRol());
+    }
+    @Test
+    void adminNoDebeCambiarRolDeUsuarioDeOtraAplicacion() throws Exception {
+
+        Aplicacion appA = aplicacionRepository.save(
+                new Aplicacion(
+                        "admin-rol-aislamiento-a",
+                        "Admin Rol Aislamiento A"
+                )
+        );
+
+        Aplicacion appB = aplicacionRepository.save(
+                new Aplicacion(
+                        "admin-rol-aislamiento-b",
+                        "Admin Rol Aislamiento B"
+                )
+        );
+
+        Usuario admin = crearUsuario(
+                "Admin App A Rol",
+                "admin-app-a-rol@test.com"
+        );
+
+        Usuario usuarioB = crearUsuario(
+                "Usuario App B Rol",
+                "usuario-app-b-rol@test.com"
+        );
+
+        usuarioAplicacionRepository.save(
+                new UsuarioAplicacion(
+                        admin,
+                        appA,
+                        RolAplicacion.ADMIN
+                )
+        );
+
+        usuarioAplicacionRepository.save(
+                new UsuarioAplicacion(
+                        usuarioB,
+                        appB,
+                        RolAplicacion.USER
+                )
+        );
+
+        String token = jwtService.generarToken(
+                admin.getEmail(),
+                "ADMIN",
+                "admin-rol-aislamiento-a",
+                false
+        );
+
+        String json = """
+            {
+                "rol": "ADMIN"
+            }
+            """;
+
+        mockMvc.perform(
+                        patch(
+                                "/api/admin/usuarios/{usuarioId}/rol",
+                                usuarioB.getId()
+                        )
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-App-Id", "admin-rol-aislamiento-a")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isNotFound());
+    }
+    @Test
+    void adminNoDebeCambiarRolDeAccesoInactivo() throws Exception {
+
+        Aplicacion aplicacion = aplicacionRepository.save(
+                new Aplicacion(
+                        "admin-rol-inactivo",
+                        "Admin Rol Inactivo"
+                )
+        );
+
+        Usuario admin = crearUsuario(
+                "Admin Rol Inactivo",
+                "admin-rol-inactivo@test.com"
+        );
+
+        Usuario usuario = crearUsuario(
+                "Usuario Rol Inactivo",
+                "usuario-rol-inactivo-app@test.com"
+        );
+
+        usuarioAplicacionRepository.save(
+                new UsuarioAplicacion(
+                        admin,
+                        aplicacion,
+                        RolAplicacion.ADMIN
+                )
+        );
+
+        UsuarioAplicacion acceso = new UsuarioAplicacion(
+                usuario,
+                aplicacion,
+                RolAplicacion.USER
+        );
+
+        acceso.setActivo(false);
+        usuarioAplicacionRepository.save(acceso);
+
+        String token = jwtService.generarToken(
+                admin.getEmail(),
+                "ADMIN",
+                "admin-rol-inactivo",
+                false
+        );
+
+        String json = """
+            {
+                "rol": "ADMIN"
+            }
+            """;
+
+        mockMvc.perform(
+                        patch(
+                                "/api/admin/usuarios/{usuarioId}/rol",
+                                usuario.getId()
+                        )
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-App-Id", "admin-rol-inactivo")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isConflict());
+    }
+    @Test
+    void adminDegradadoNoDebeCambiarRoles() throws Exception {
+
+        Aplicacion aplicacion = aplicacionRepository.save(
+                new Aplicacion(
+                        "admin-rol-degradado",
+                        "Admin Rol Degradado"
+                )
+        );
+
+        Usuario antiguoAdmin = crearUsuario(
+                "Antiguo Admin Rol",
+                "antiguo-admin-rol@test.com"
+        );
+
+        Usuario usuario = crearUsuario(
+                "Usuario Objetivo Rol",
+                "usuario-objetivo-rol@test.com"
+        );
+
+        usuarioAplicacionRepository.save(
+                new UsuarioAplicacion(
+                        antiguoAdmin,
+                        aplicacion,
+                        RolAplicacion.USER
+                )
+        );
+
+        usuarioAplicacionRepository.save(
+                new UsuarioAplicacion(
+                        usuario,
+                        aplicacion,
+                        RolAplicacion.USER
+                )
+        );
+
+        String token = jwtService.generarToken(
+                antiguoAdmin.getEmail(),
+                "ADMIN",
+                "admin-rol-degradado",
+                false
+        );
+
+        String json = """
+            {
+                "rol": "ADMIN"
+            }
+            """;
+
+        mockMvc.perform(
+                        patch(
+                                "/api/admin/usuarios/{usuarioId}/rol",
+                                usuario.getId()
+                        )
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-App-Id", "admin-rol-degradado")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isForbidden());
+    }
+    @Test
+    void adminNoDebeCambiarRolDeSuperAdmin() throws Exception {
+
+        Aplicacion aplicacion = aplicacionRepository.save(
+                new Aplicacion(
+                        "admin-rol-superadmin",
+                        "Admin Rol SuperAdmin"
+                )
+        );
+
+        Usuario admin = crearUsuario(
+                "Admin Local Rol",
+                "admin-local-rol@test.com"
+        );
+
+        Usuario superAdmin = crearUsuario(
+                "Super Admin Objetivo",
+                "superadmin-objetivo-rol@test.com"
+        );
+
+        superAdmin.setSuperAdmin(true);
+        superAdmin = usuarioRepository.save(superAdmin);
+
+        usuarioAplicacionRepository.save(
+                new UsuarioAplicacion(
+                        admin,
+                        aplicacion,
+                        RolAplicacion.ADMIN
+                )
+        );
+
+        usuarioAplicacionRepository.save(
+                new UsuarioAplicacion(
+                        superAdmin,
+                        aplicacion,
+                        RolAplicacion.USER
+                )
+        );
+
+        String token = jwtService.generarToken(
+                admin.getEmail(),
+                "ADMIN",
+                "admin-rol-superadmin",
+                false
+        );
+
+        String json = """
+            {
+                "rol": "ADMIN"
+            }
+            """;
+
+        mockMvc.perform(
+                        patch(
+                                "/api/admin/usuarios/{usuarioId}/rol",
+                                superAdmin.getId()
+                        )
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-App-Id", "admin-rol-superadmin")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isForbidden());
+    }
+    @Test
+    void adminDebeCambiarAdminAUserSiExisteOtroAdminActivo() throws Exception {
+
+        Aplicacion aplicacion = aplicacionRepository.save(
+                new Aplicacion(
+                        "admin-degradar-con-respaldo",
+                        "Admin Degradar Con Respaldo"
+                )
+        );
+
+        Usuario adminEjecutor = crearUsuario(
+                "Admin Ejecutor",
+                "admin-ejecutor-degradar@test.com"
+        );
+
+        Usuario adminObjetivo = crearUsuario(
+                "Admin Objetivo",
+                "admin-objetivo-degradar@test.com"
+        );
+
+        usuarioAplicacionRepository.save(
+                new UsuarioAplicacion(
+                        adminEjecutor,
+                        aplicacion,
+                        RolAplicacion.ADMIN
+                )
+        );
+
+        UsuarioAplicacion accesoObjetivo =
+                usuarioAplicacionRepository.save(
+                        new UsuarioAplicacion(
+                                adminObjetivo,
+                                aplicacion,
+                                RolAplicacion.ADMIN
+                        )
+                );
+
+        String token = jwtService.generarToken(
+                adminEjecutor.getEmail(),
+                "ADMIN",
+                "admin-degradar-con-respaldo",
+                false
+        );
+
+        String json = """
+            {
+                "rol": "USER"
+            }
+            """;
+
+        mockMvc.perform(
+                        patch(
+                                "/api/admin/usuarios/{usuarioId}/rol",
+                                adminObjetivo.getId()
+                        )
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-App-Id", "admin-degradar-con-respaldo")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rol").value("USER"))
+                .andExpect(jsonPath("$.activo").value(true));
+
+        UsuarioAplicacion actualizado =
+                usuarioAplicacionRepository
+                        .findById(accesoObjetivo.getId())
+                        .orElseThrow();
+
+        assertEquals("USER", actualizado.getRol());
+    }
+    @Test
+    void noDebeDegradarAlUltimoAdminActivo() throws Exception {
+
+        Aplicacion aplicacion = aplicacionRepository.save(
+                new Aplicacion(
+                        "ultimo-admin-test",
+                        "Ultimo Admin Test"
+                )
+        );
+
+        Usuario admin = crearUsuario(
+                "Ultimo Admin",
+                "ultimo-admin@test.com"
+        );
+
+        UsuarioAplicacion accesoAdmin =
+                usuarioAplicacionRepository.save(
+                        new UsuarioAplicacion(
+                                admin,
+                                aplicacion,
+                                RolAplicacion.ADMIN
+                        )
+                );
+
+        String token = jwtService.generarToken(
+                admin.getEmail(),
+                "ADMIN",
+                "ultimo-admin-test",
+                false
+        );
+
+        String json = """
+            {
+                "rol": "USER"
+            }
+            """;
+
+        mockMvc.perform(
+                        patch(
+                                "/api/admin/usuarios/{usuarioId}/rol",
+                                admin.getId()
+                        )
+                                .header("Authorization", "Bearer " + token)
+                                .header("X-App-Id", "ultimo-admin-test")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isConflict());
+
+        UsuarioAplicacion actualizado =
+                usuarioAplicacionRepository
+                        .findById(accesoAdmin.getId())
+                        .orElseThrow();
+
+        assertEquals("ADMIN", actualizado.getRol());
     }
 }

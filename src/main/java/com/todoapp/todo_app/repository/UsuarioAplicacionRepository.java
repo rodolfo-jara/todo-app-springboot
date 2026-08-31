@@ -1,5 +1,6 @@
 package com.todoapp.todo_app.repository;
 
+import com.todoapp.todo_app.entity.RolAplicacion;
 import com.todoapp.todo_app.entity.UsuarioAplicacion;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -23,6 +24,10 @@ public interface UsuarioAplicacionRepository
     );
     List<UsuarioAplicacion> findByAplicacionCodigo(
             String codigo
+    );
+    long countByAplicacionIdAndRolAndActivoTrue(
+            Long aplicacionId,
+            RolAplicacion rol
     );
 
 }

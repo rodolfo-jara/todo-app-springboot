@@ -1,6 +1,7 @@
 package com.todoapp.todo_app.controller;
 
 import com.todoapp.todo_app.dto.AgregarUsuarioAppRequest;
+import com.todoapp.todo_app.dto.CambiarRolRequest;
 import com.todoapp.todo_app.dto.UsuarioAppAdminResponse;
 import com.todoapp.todo_app.entity.UsuarioAplicacion;
 import com.todoapp.todo_app.service.UsuarioService;
@@ -74,6 +75,33 @@ public class AdminAplicacionController {
                         authentication.getName(),
                         appCodigo,
                         usuarioId
+                );
+
+        UsuarioAppAdminResponse response =
+                new UsuarioAppAdminResponse(
+                        acceso.getUsuario().getId(),
+                        acceso.getUsuario().getNombre(),
+                        acceso.getUsuario().getEmail(),
+                        acceso.getRol(),
+                        acceso.isActivo()
+                );
+
+        return ResponseEntity.ok(response);
+    }
+    @PatchMapping("/usuarios/{usuarioId}/rol")
+    public ResponseEntity<UsuarioAppAdminResponse> cambiarRol(
+            Authentication authentication,
+            @RequestHeader("X-App-Id") String appCodigo,
+            @PathVariable Long usuarioId,
+            @Valid @RequestBody CambiarRolRequest request
+    ) {
+
+        UsuarioAplicacion acceso =
+                usuarioService.cambiarRolEnPropiaAplicacion(
+                        authentication.getName(),
+                        appCodigo,
+                        usuarioId,
+                        request.getRol()
                 );
 
         UsuarioAppAdminResponse response =
