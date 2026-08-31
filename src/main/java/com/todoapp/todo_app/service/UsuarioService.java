@@ -349,4 +349,90 @@ public class UsuarioService {
                 ))
                 .toList();
     }
+
+    @Transactional
+    public UsuarioAplicacion agregarUsuarioAPropiaAplicacion(
+            String emailAdmin,
+            String appCodigo,
+            String emailUsuario
+    ) {
+
+        String codigoNormalizado = appCodigo
+                .trim()
+                .toLowerCase(Locale.ROOT);
+
+        String emailNormalizado = emailUsuario
+                .trim()
+                .toLowerCase(Locale.ROOT);
+
+        UsuarioAplicacion accesoAdmin =
+                usuarioAplicacionRepository
+                        .findByUsuarioEmailAndAplicacionCodigo(
+                                emailAdmin,
+                                codigoNormalizado
+                        )
+                        .orElseThrow(() -> new ResponseStatusException(
+                                HttpStatus.FORBIDDEN,
+                                "No tienes permisos para administrar esta aplicación"
+                        ));
+
+        if (!accesoAdmin.isActivo()
+                || !accesoAdmin.getAplicacion().isActivo()
+                || !RolAplicacion.ADMIN.name().equals(accesoAdmin.getRol())) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "No tienes permisos para administrar esta aplicación"
+            );
+        }
+
+        Usuario usuario = usuarioRepository
+                .findByEmail(emailNormalizado)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Usuario no encontrado"
+                ));
+
+        if (usuario.isSuperAdmin()) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Un ADMIN de aplicación no puede administrar un SUPER_ADMIN"
+            );
+        }
+
+        Aplicacion aplicacion = accesoAdmin.getAplicacion();
+
+        var accesoExistente =
+                usuarioAplicacionRepository
+                        .findByUsuarioIdAndAplicacionId(
+                                usuario.getId(),
+                                aplicacion.getId()
+                        );
+
+        if (accesoExistente.isPresent()) {
+
+            UsuarioAplicacion acceso = accesoExistente.get();
+
+            if (acceso.isActivo()) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "El usuario ya pertenece a esta aplicación"
+                );
+            }
+
+            acceso.setActivo(true);
+            acceso.setRol(RolAplicacion.USER.name());
+
+            return usuarioAplicacionRepository.save(acceso);
+        }
+
+        UsuarioAplicacion nuevoAcceso =
+                new UsuarioAplicacion(
+                        usuario,
+                        aplicacion,
+                        RolAplicacion.USER
+                );
+
+        return usuarioAplicacionRepository.save(nuevoAcceso);
+    }
 }
