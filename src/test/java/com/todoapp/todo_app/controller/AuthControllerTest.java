@@ -14,6 +14,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
@@ -528,7 +530,7 @@ class AuthControllerTest {
                 acceso.getRol()
         );
 
-        org.junit.jupiter.api.Assertions.assertTrue(
+        assertTrue(
                 acceso.isActivo()
         );
     }
@@ -549,7 +551,7 @@ class AuthControllerTest {
                         .content(json))
                 .andExpect(status().isBadRequest());
 
-        org.junit.jupiter.api.Assertions.assertTrue(
+        assertTrue(
                 usuarioRepository
                         .findByEmail("inexistente@test.com")
                         .isEmpty()
@@ -579,7 +581,7 @@ class AuthControllerTest {
                         .content(json))
                 .andExpect(status().isBadRequest());
 
-        org.junit.jupiter.api.Assertions.assertTrue(
+        assertTrue(
                 usuarioRepository
                         .findByEmail("desactivada@test.com")
                         .isEmpty()
@@ -610,7 +612,7 @@ class AuthControllerTest {
                         .content(json))
                 .andExpect(status().isConflict());
 
-        org.junit.jupiter.api.Assertions.assertTrue(
+        assertTrue(
                 usuarioAplicacionRepository
                         .findByUsuarioEmailAndAplicacionCodigo(
                                 "test@test.com",
@@ -859,7 +861,7 @@ class AuthControllerTest {
                 .get("token")
                 .asText();
 
-        org.junit.jupiter.api.Assertions.assertTrue(
+        assertTrue(
                 jwtService.extraerSuperAdmin(token)
         );
 
@@ -1267,12 +1269,141 @@ class AuthControllerTest {
                 refreshTokenRepository.count()
         );
 
-        org.junit.jupiter.api.Assertions.assertTrue(
+        assertTrue(
                 refreshTokenRepository
                         .findByTokenHash("hash-valido")
                         .isPresent()
         );
     }
+    @Test
+    void refreshTokenExpiradoDebeRetornar401() throws Exception {
 
+        Usuario usuario = usuarioRepository
+                .findByEmail("test@test.com")
+                .orElseThrow();
+
+        Aplicacion aplicacion = aplicacionRepository
+                .findByCodigo("todo-app")
+                .orElseThrow();
+
+        String refreshToken =
+                refreshTokenService.crear(
+                        usuario,
+                        aplicacion
+                );
+
+        RefreshToken tokenGuardado =
+                refreshTokenRepository
+                        .findAll()
+                        .stream()
+                        .findFirst()
+                        .orElseThrow();
+
+        tokenGuardado.setExpiraEn(
+                Instant.now().minusSeconds(60)
+        );
+
+        refreshTokenRepository.save(tokenGuardado);
+
+        String json = """
+            {
+                "refreshToken": "%s",
+                "app": "todo-app"
+            }
+            """.formatted(refreshToken);
+
+        mockMvc.perform(
+                        post("/api/auth/refresh")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isUnauthorized())
+                .andExpect(
+                        content().string(
+                                "Refresh token inválido o expirado"
+                        )
+                );
+    }
+    @Test
+    void refreshTokenInexistenteDebeRetornar401() throws Exception {
+
+        String json = """
+            {
+                "refreshToken": "refresh-token-manipulado-que-no-existe",
+                "app": "todo-app"
+            }
+            """;
+
+        mockMvc.perform(
+                        post("/api/auth/refresh")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                )
+                .andExpect(status().isUnauthorized())
+                .andExpect(
+                        content().string(
+                                "Refresh token inválido o expirado"
+                        )
+                );
+    }
+    @Test
+    void logoutDebeRevocarRefreshTokenYNoPermitirReutilizarlo()
+            throws Exception {
+
+        Usuario usuario = usuarioRepository
+                .findByEmail("test@test.com")
+                .orElseThrow();
+
+        Aplicacion aplicacion = aplicacionRepository
+                .findByCodigo("todo-app")
+                .orElseThrow();
+
+        String refreshToken =
+                refreshTokenService.crear(
+                        usuario,
+                        aplicacion
+                );
+
+        String logoutJson = """
+            {
+                "refreshToken": "%s"
+            }
+            """.formatted(refreshToken);
+
+        mockMvc.perform(
+                        post("/api/auth/logout")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(logoutJson)
+                )
+                .andExpect(status().isOk());
+
+        RefreshToken tokenGuardado =
+                refreshTokenRepository
+                        .findAll()
+                        .stream()
+                        .findFirst()
+                        .orElseThrow();
+
+        assertTrue(tokenGuardado.isRevocado());
+
+        String refreshJson = """
+            {
+                "refreshToken": "%s",
+                "app": "todo-app"
+            }
+            """.formatted(refreshToken);
+
+        mockMvc.perform(
+                        post("/api/auth/refresh")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(refreshJson)
+                )
+                .andExpect(status().isUnauthorized())
+                .andExpect(
+                        content().string(
+                                "Refresh token inválido o expirado"
+                        )
+                );
+    }
 
 }
