@@ -1643,4 +1643,141 @@ class AdminAplicacionControllerTest {
                 )
                 .andExpect(status().isBadRequest());
     }
+    @Test
+    void noDebeDesactivarAlUltimoAdminActivo() throws Exception {
+
+        Aplicacion aplicacion = aplicacionRepository.save(
+                new Aplicacion(
+                        "ultimo-admin-desactivar",
+                        "Ultimo Admin Desactivar"
+                )
+        );
+
+        Usuario admin = crearUsuario(
+                "Ultimo Admin Desactivar",
+                "ultimo-admin-desactivar@test.com"
+        );
+
+        UsuarioAplicacion accesoAdmin =
+                usuarioAplicacionRepository.save(
+                        new UsuarioAplicacion(
+                                admin,
+                                aplicacion,
+                                RolAplicacion.ADMIN
+                        )
+                );
+
+        String token = jwtService.generarToken(
+                admin.getEmail(),
+                "ADMIN",
+                "ultimo-admin-desactivar",
+                false
+        );
+
+        mockMvc.perform(
+                        delete(
+                                "/api/admin/usuarios/{usuarioId}",
+                                admin.getId()
+                        )
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + token
+                                )
+                                .header(
+                                        "X-App-Id",
+                                        "ultimo-admin-desactivar"
+                                )
+                )
+                .andExpect(status().isConflict());
+
+        UsuarioAplicacion actualizado =
+                usuarioAplicacionRepository
+                        .findById(accesoAdmin.getId())
+                        .orElseThrow();
+
+        assertTrue(actualizado.isActivo());
+        assertEquals("ADMIN", actualizado.getRol());
+    }
+    @Test
+    void debePermitirDesactivarAdminSiExisteOtroAdminActivo() throws Exception {
+
+        Aplicacion aplicacion = aplicacionRepository.save(
+                new Aplicacion(
+                        "desactivar-admin-con-respaldo",
+                        "Desactivar Admin Con Respaldo"
+                )
+        );
+
+        Usuario adminEjecutor = crearUsuario(
+                "Admin Ejecutor Desactivar",
+                "admin-ejecutor-desactivar@test.com"
+        );
+
+        Usuario adminObjetivo = crearUsuario(
+                "Admin Objetivo Desactivar",
+                "admin-objetivo-desactivar@test.com"
+        );
+
+        UsuarioAplicacion accesoEjecutor =
+                usuarioAplicacionRepository.save(
+                        new UsuarioAplicacion(
+                                adminEjecutor,
+                                aplicacion,
+                                RolAplicacion.ADMIN
+                        )
+                );
+
+        UsuarioAplicacion accesoObjetivo =
+                usuarioAplicacionRepository.save(
+                        new UsuarioAplicacion(
+                                adminObjetivo,
+                                aplicacion,
+                                RolAplicacion.ADMIN
+                        )
+                );
+
+        String token = jwtService.generarToken(
+                adminEjecutor.getEmail(),
+                "ADMIN",
+                "desactivar-admin-con-respaldo",
+                false
+        );
+
+        mockMvc.perform(
+                        delete(
+                                "/api/admin/usuarios/{usuarioId}",
+                                adminObjetivo.getId()
+                        )
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + token
+                                )
+                                .header(
+                                        "X-App-Id",
+                                        "desactivar-admin-con-respaldo"
+                                )
+                )
+                .andExpect(status().isOk())
+                .andExpect(
+                        jsonPath("$.usuarioId")
+                                .value(adminObjetivo.getId())
+                )
+                .andExpect(jsonPath("$.activo").value(false));
+
+        UsuarioAplicacion ejecutorActualizado =
+                usuarioAplicacionRepository
+                        .findById(accesoEjecutor.getId())
+                        .orElseThrow();
+
+        UsuarioAplicacion objetivoActualizado =
+                usuarioAplicacionRepository
+                        .findById(accesoObjetivo.getId())
+                        .orElseThrow();
+
+        assertTrue(ejecutorActualizado.isActivo());
+        assertEquals("ADMIN", ejecutorActualizado.getRol());
+
+        assertFalse(objetivoActualizado.isActivo());
+        assertEquals("ADMIN", objetivoActualizado.getRol());
+    }
 }

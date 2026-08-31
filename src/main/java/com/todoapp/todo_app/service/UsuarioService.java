@@ -489,6 +489,28 @@ public class UsuarioService {
                                 "El usuario no pertenece a esta aplicación"
                         ));
 
+        boolean seEstaDesactivandoAdmin =
+                accesoUsuario.isActivo()
+                        && RolAplicacion.ADMIN.name()
+                        .equals(accesoUsuario.getRol());
+
+        if (seEstaDesactivandoAdmin) {
+
+            long cantidadAdminsActivos =
+                    usuarioAplicacionRepository
+                            .countByAplicacionIdAndRolAndActivoTrue(
+                                    aplicacion.getId(),
+                                    RolAplicacion.ADMIN
+                            );
+
+            if (cantidadAdminsActivos <= 1) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "No se puede desactivar al último ADMIN activo de la aplicación"
+                );
+            }
+        }
+
         accesoUsuario.setActivo(false);
 
         UsuarioAplicacion guardado =
