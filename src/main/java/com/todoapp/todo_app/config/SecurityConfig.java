@@ -1,5 +1,6 @@
 package com.todoapp.todo_app.config;
 
+import com.todoapp.todo_app.repository.UsuarioAplicacionRepository;
 import com.todoapp.todo_app.service.JwtService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
@@ -13,9 +14,14 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @Configuration
 public class SecurityConfig {
     private final JwtService jwtService;
+    private final UsuarioAplicacionRepository usuarioAplicacionRepository;
 
-    public SecurityConfig(JwtService jwtService) {
+    public SecurityConfig(
+            JwtService jwtService,
+            UsuarioAplicacionRepository usuarioAplicacionRepository
+    ) {
         this.jwtService = jwtService;
+        this.usuarioAplicacionRepository = usuarioAplicacionRepository;
     }
 
     @Bean
@@ -24,7 +30,10 @@ public class SecurityConfig {
     ) throws Exception {
 
         JwtAuthenticationFilter jwtFilter =
-                new JwtAuthenticationFilter(jwtService);
+                new JwtAuthenticationFilter(
+                        jwtService,
+                        usuarioAplicacionRepository
+                );
 
         http
                 .csrf(csrf -> csrf.disable())

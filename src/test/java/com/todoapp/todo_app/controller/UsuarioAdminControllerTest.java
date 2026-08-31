@@ -6,6 +6,7 @@ import com.todoapp.todo_app.repository.RefreshTokenRepository;
 import com.todoapp.todo_app.repository.UsuarioAplicacionRepository;
 import com.todoapp.todo_app.repository.UsuarioRepository;
 import com.todoapp.todo_app.service.JwtService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -51,6 +52,122 @@ class UsuarioAdminControllerTest {
     private RefreshTokenRepository refreshTokenRepository;
     @Autowired
     private PasswordEncoder passwordEncoder;
+    @BeforeEach
+    void prepararUsuariosDeSeguridad() {
+
+        // =========================================================
+        // SUPER_ADMIN global -> auth-admin
+        // =========================================================
+
+        Aplicacion authAdmin =
+                aplicacionRepository
+                        .findByCodigo("auth-admin")
+                        .orElse(null);
+
+        if (authAdmin == null) {
+            authAdmin = new Aplicacion(
+                    "auth-admin",
+                    "Auth Admin"
+            );
+        }
+
+        authAdmin.setActivo(true);
+        authAdmin = aplicacionRepository.save(authAdmin);
+
+        Usuario superAdmin =
+                usuarioRepository
+                        .findByEmail("superadmin@test.com")
+                        .orElse(null);
+
+        if (superAdmin == null) {
+            superAdmin = new Usuario();
+            superAdmin.setNombre("Super Admin Test");
+            superAdmin.setEmail("superadmin@test.com");
+            superAdmin.setPassword("password-test");
+        }
+
+        superAdmin.setSuperAdmin(true);
+        superAdmin = usuarioRepository.save(superAdmin);
+
+        UsuarioAplicacion accesoSuperAdmin =
+                usuarioAplicacionRepository
+                        .findByUsuarioIdAndAplicacionId(
+                                superAdmin.getId(),
+                                authAdmin.getId()
+                        )
+                        .orElse(null);
+
+        if (accesoSuperAdmin == null) {
+            accesoSuperAdmin = new UsuarioAplicacion(
+                    superAdmin,
+                    authAdmin,
+                    RolAplicacion.ADMIN
+            );
+        } else {
+            accesoSuperAdmin.setRol("ADMIN");
+        }
+
+        accesoSuperAdmin.setActivo(true);
+
+        usuarioAplicacionRepository.save(accesoSuperAdmin);
+
+
+        // =========================================================
+        // ADMIN normal -> todo-app
+        // =========================================================
+
+        Aplicacion todoApp =
+                aplicacionRepository
+                        .findByCodigo("todo-app")
+                        .orElse(null);
+
+        if (todoApp == null) {
+            todoApp = new Aplicacion(
+                    "todo-app",
+                    "Todo App"
+            );
+        }
+
+        todoApp.setActivo(true);
+        todoApp = aplicacionRepository.save(todoApp);
+
+        Usuario admin =
+                usuarioRepository
+                        .findByEmail("admin@test.com")
+                        .orElse(null);
+
+        if (admin == null) {
+            admin = new Usuario();
+            admin.setNombre("Admin Test");
+            admin.setEmail("admin@test.com");
+            admin.setPassword("password-test");
+        }
+
+        admin.setSuperAdmin(false);
+        admin = usuarioRepository.save(admin);
+
+        UsuarioAplicacion accesoAdmin =
+                usuarioAplicacionRepository
+                        .findByUsuarioIdAndAplicacionId(
+                                admin.getId(),
+                                todoApp.getId()
+                        )
+                        .orElse(null);
+
+        if (accesoAdmin == null) {
+            accesoAdmin = new UsuarioAplicacion(
+                    admin,
+                    todoApp,
+                    RolAplicacion.ADMIN
+            );
+        } else {
+            accesoAdmin.setRol("ADMIN");
+        }
+
+        accesoAdmin.setActivo(true);
+
+        usuarioAplicacionRepository.save(accesoAdmin);
+    }
     @Test
     void superAdminDebeListarTodosLosUsuarios() throws Exception {
 

@@ -51,6 +51,7 @@ class AdminAplicacionControllerTest {
 
     @Autowired
     private UsuarioAplicacionRepository usuarioAplicacionRepository;
+
     @Autowired
     private RefreshTokenRepository refreshTokenRepository;
 
@@ -142,10 +143,30 @@ class AdminAplicacionControllerTest {
     @Test
     void userNoDebeListarUsuariosDeAplicacion() throws Exception {
 
+        Aplicacion aplicacion = aplicacionRepository.save(
+                new Aplicacion(
+                        "user-admin-endpoint-app",
+                        "User Admin Endpoint App"
+                )
+        );
+
+        Usuario usuario = crearUsuario(
+                "User Sin Permisos Admin",
+                "user-admin-endpoint@test.com"
+        );
+
+        usuarioAplicacionRepository.save(
+                new UsuarioAplicacion(
+                        usuario,
+                        aplicacion,
+                        RolAplicacion.USER
+                )
+        );
+
         String token = jwtService.generarToken(
-                "user-admin-endpoint@test.com",
+                usuario.getEmail(),
                 "USER",
-                "todo-app",
+                "user-admin-endpoint-app",
                 false
         );
 
@@ -157,7 +178,7 @@ class AdminAplicacionControllerTest {
                                 )
                                 .header(
                                         "X-App-Id",
-                                        "todo-app"
+                                        "user-admin-endpoint-app"
                                 )
                 )
                 .andExpect(status().isForbidden());
@@ -204,7 +225,7 @@ class AdminAplicacionControllerTest {
                                         "admin-degradado-test"
                                 )
                 )
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -250,7 +271,7 @@ class AdminAplicacionControllerTest {
                                         "admin-inactivo-test"
                                 )
                 )
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -295,7 +316,7 @@ class AdminAplicacionControllerTest {
                                         "admin-app-inactiva-test"
                                 )
                 )
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -654,7 +675,7 @@ class AdminAplicacionControllerTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(json)
                 )
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
     @Test
     void adminNoDebeAgregarSuperAdminASuAplicacion() throws Exception {
@@ -940,7 +961,7 @@ class AdminAplicacionControllerTest {
                                 .header("Authorization", "Bearer " + token)
                                 .header("X-App-Id", "admin-quitar-degradado")
                 )
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
     @Test
     void adminNoDebeQuitarSuperAdminDeSuAplicacion() throws Exception {
@@ -1276,7 +1297,7 @@ class AdminAplicacionControllerTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(json)
                 )
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
     @Test
     void adminNoDebeCambiarRolDeSuperAdmin() throws Exception {
@@ -1472,10 +1493,30 @@ class AdminAplicacionControllerTest {
     @Test
     void adminNoPuedeCrearAplicaciones() throws Exception {
 
+        Aplicacion aplicacionAdmin = aplicacionRepository.save(
+                new Aplicacion(
+                        "admin-no-crea-app-origen",
+                        "Admin No Crea App Origen"
+                )
+        );
+
+        Usuario admin = crearUsuario(
+                "Admin Sin Crear Apps",
+                "admin-no-crea-app@test.com"
+        );
+
+        usuarioAplicacionRepository.save(
+                new UsuarioAplicacion(
+                        admin,
+                        aplicacionAdmin,
+                        RolAplicacion.ADMIN
+                )
+        );
+
         String token = jwtService.generarToken(
-                "admin-no-crea-app@test.com",
+                admin.getEmail(),
                 "ADMIN",
-                "app-admin-test",
+                "admin-no-crea-app-origen",
                 false
         );
 
@@ -1494,7 +1535,7 @@ class AdminAplicacionControllerTest {
                                 )
                                 .header(
                                         "X-App-Id",
-                                        "app-admin-test"
+                                        "admin-no-crea-app-origen"
                                 )
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(json)
@@ -1504,24 +1545,44 @@ class AdminAplicacionControllerTest {
     @Test
     void adminNoPuedeEliminarAplicaciones() throws Exception {
 
-        Aplicacion aplicacion = aplicacionRepository.save(
+        Aplicacion aplicacionAdmin = aplicacionRepository.save(
+                new Aplicacion(
+                        "admin-no-elimina-app-origen",
+                        "Admin No Elimina App Origen"
+                )
+        );
+
+        Aplicacion aplicacionObjetivo = aplicacionRepository.save(
                 new Aplicacion(
                         "app-no-eliminar-admin",
                         "App No Eliminar Admin"
                 )
         );
 
+        Usuario admin = crearUsuario(
+                "Admin Sin Eliminar Apps",
+                "admin-no-elimina-app@test.com"
+        );
+
+        usuarioAplicacionRepository.save(
+                new UsuarioAplicacion(
+                        admin,
+                        aplicacionAdmin,
+                        RolAplicacion.ADMIN
+                )
+        );
+
         String token = jwtService.generarToken(
-                "admin-no-elimina-app@test.com",
+                admin.getEmail(),
                 "ADMIN",
-                "app-admin-test",
+                "admin-no-elimina-app-origen",
                 false
         );
 
         mockMvc.perform(
                         delete(
                                 "/api/aplicaciones/{id}",
-                                aplicacion.getId()
+                                aplicacionObjetivo.getId()
                         )
                                 .header(
                                         "Authorization",
@@ -1529,7 +1590,7 @@ class AdminAplicacionControllerTest {
                                 )
                                 .header(
                                         "X-App-Id",
-                                        "app-admin-test"
+                                        "admin-no-elimina-app-origen"
                                 )
                 )
                 .andExpect(status().isForbidden());

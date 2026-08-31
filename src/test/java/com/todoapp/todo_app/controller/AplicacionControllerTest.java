@@ -23,8 +23,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import com.todoapp.todo_app.entity.RefreshToken;
 import com.todoapp.todo_app.entity.Usuario;
-import com.todoapp.todo_app.repository.RefreshTokenRepository;
-import com.todoapp.todo_app.repository.UsuarioRepository;
+import com.todoapp.todo_app.entity.RolAplicacion;
+import com.todoapp.todo_app.entity.UsuarioAplicacion;
+import com.todoapp.todo_app.repository.UsuarioAplicacionRepository;
+import org.junit.jupiter.api.BeforeEach;
 
 import java.time.Instant;
 
@@ -48,7 +50,63 @@ class AplicacionControllerTest {
 
     @Autowired
     private UsuarioRepository usuarioRepository;
+    @Autowired
+    private UsuarioAplicacionRepository usuarioAplicacionRepository;
+    @BeforeEach
+    void prepararSuperAdmin() {
 
+        Aplicacion authAdmin =
+                aplicacionRepository
+                        .findByCodigo("auth-admin")
+                        .orElse(null);
+
+        if (authAdmin == null) {
+            authAdmin = new Aplicacion(
+                    "auth-admin",
+                    "Auth Admin"
+            );
+        }
+
+        authAdmin.setActivo(true);
+        authAdmin = aplicacionRepository.save(authAdmin);
+
+        Usuario superAdmin =
+                usuarioRepository
+                        .findByEmail("superadmin@test.com")
+                        .orElse(null);
+
+        if (superAdmin == null) {
+            superAdmin = new Usuario();
+            superAdmin.setNombre("Super Admin Test");
+            superAdmin.setEmail("superadmin@test.com");
+            superAdmin.setPassword("password-test");
+        }
+
+        superAdmin.setSuperAdmin(true);
+        superAdmin = usuarioRepository.save(superAdmin);
+
+        UsuarioAplicacion acceso =
+                usuarioAplicacionRepository
+                        .findByUsuarioIdAndAplicacionId(
+                                superAdmin.getId(),
+                                authAdmin.getId()
+                        )
+                        .orElse(null);
+
+        if (acceso == null) {
+            acceso = new UsuarioAplicacion(
+                    superAdmin,
+                    authAdmin,
+                    RolAplicacion.ADMIN
+            );
+        } else {
+            acceso.setRol("ADMIN");
+        }
+
+        acceso.setActivo(true);
+
+        usuarioAplicacionRepository.save(acceso);
+    }
     @Test
     void crearAplicacionDebeNormalizarCodigo() throws Exception {
 
